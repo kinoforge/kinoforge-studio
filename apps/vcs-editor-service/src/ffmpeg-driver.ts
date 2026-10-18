@@ -99,7 +99,7 @@ export class FfmpegDriver implements RenderDriver {
       "-c:a",
       "aac",
       "-movflags",
-      "+faststart",
+      "+faststart+use_metadata_tags",
       ...tags,
       outputLocation,
     ]);
@@ -144,7 +144,7 @@ export class FfmpegDriver implements RenderDriver {
         "-c",
         "copy",
         "-movflags",
-        "+faststart",
+        "+faststart+use_metadata_tags",
         ...tags,
         joined,
       ]);
@@ -176,7 +176,7 @@ export class FfmpegDriver implements RenderDriver {
           "2",
           "-shortest",
           "-movflags",
-          "+faststart",
+          "+faststart+use_metadata_tags",
           ...tags,
           outputLocation,
         ]);
