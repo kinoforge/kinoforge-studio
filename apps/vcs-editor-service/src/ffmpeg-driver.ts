@@ -23,7 +23,7 @@ const evenFloor = (n: number) => Math.max(0, Math.floor(n / 2) * 2);
 const DEFAULT_SCENE_GAP = 0.5;
 const DEFAULT_MUSIC_VOLUME = 0.18;
 // Upscale the still before zoompan so the Ken Burns move samples from extra pixels
-// instead of blurring — base zoom is this factor (crop window = input / Q = canvas).
+// instead of blurring; the upscaled frame is the whole canvas, so zoom 1 shows all of it.
 const KB_UPSCALE = 2;
 
 const sceneDurationSec = (scene: StoryScene, gap: number): number =>
@@ -260,10 +260,10 @@ export class FfmpegDriver implements RenderDriver {
       const pys = 1.2;
       const pye = -1.2;
       const d = Math.max(1, frames - 1);
-      const q = KB_UPSCALE;
-      const z = `${q}*(${z0}+(${(z1 - z0).toFixed(5)})*on/${d})`;
-      const x = `(iw-iw/zoom)/2+((${pxs})+(${(pxe - pxs).toFixed(5)})*on/${d})/100*iw/${q}`;
-      const y = `(ih-ih/zoom)/2+((${pys})+(${(pye - pys).toFixed(5)})*on/${d})/100*ih/${q}`;
+      // As the composition's scale() translate(): the view drifts against the pan.
+      const z = `${z0}+(${(z1 - z0).toFixed(5)})*on/${d}`;
+      const x = `(iw-iw/zoom)/2-((${pxs})+(${(pxe - pxs).toFixed(5)})*on/${d})/100*iw`;
+      const y = `(ih-ih/zoom)/2-((${pys})+(${(pye - pys).toFixed(5)})*on/${d})/100*ih`;
       videoChain =
         `[0:v]scale=${width * KB_UPSCALE}:${height * KB_UPSCALE}:force_original_aspect_ratio=increase,` +
         `crop=${width * KB_UPSCALE}:${height * KB_UPSCALE},` +
