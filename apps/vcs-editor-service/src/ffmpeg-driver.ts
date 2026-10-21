@@ -16,6 +16,7 @@ import { AssCaptions } from "./ass-captions.ts";
 import { type RenderDriver, type RenderJob, RenderTags } from "./driver.ts";
 
 const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
+const FFPROBE = process.env.FFPROBE_PATH || "ffprobe";
 const evenFloor = (n: number) => Math.max(0, Math.floor(n / 2) * 2);
 
 // Mirror the Remotion story composition's timing + grade so the fast lane stays a
@@ -39,6 +40,30 @@ function run(cmd: string, args: string[]): Promise<void> {
     proc.on("error", reject);
     proc.on("close", (code) =>
       code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}: ${err.slice(-400)}`)),
+    );
+  });
+}
+
+/** Whether the file has an audio stream: a clip from a model that makes no sound has none. */
+function hasAudio(file: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const args = ["-v", "error", "-select_streams", "a", "-show_entries", "stream=index"];
+    const proc = spawn(FFPROBE, [...args, "-of", "csv=p=0", file], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let out = "";
+    let err = "";
+    proc.stdout.on("data", (d) => {
+      out += d.toString();
+    });
+    proc.stderr.on("data", (d) => {
+      err += d.toString();
+    });
+    proc.on("error", reject);
+    proc.on("close", (code) =>
+      code === 0
+        ? resolve(out.trim() !== "")
+        : reject(new Error(`ffprobe exited ${code}: ${err.slice(-400)}`)),
     );
   });
 }
@@ -237,7 +262,8 @@ export class FfmpegDriver implements RenderDriver {
 
     if (scene.video) {
       inputs.push("-i", scene.video);
-      if (scene.video_audio) {
+      // A clip meant to speak for itself but made silent (a fallback model) plays muted.
+      if (scene.video_audio && (await hasAudio(scene.video))) {
         // Native-audio clip: play once, clone the last frame to fill the scene, keep its sound.
         videoChain = `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},tpad=stop_mode=clone:stop_duration=${dur},${grade}[v]`;
         audioLabel = "0:a";
