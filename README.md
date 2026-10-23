@@ -8,6 +8,13 @@
   A render service and editor for short vertical video.
 </p>
 
+<p align="center">
+  <a href="https://videogpt.dev"><img src="https://img.shields.io/badge/website-videogpt.dev-7c3aed" alt="Website"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
+  <a href="https://github.com/videogpt-dev/videogpt-studio/commits/main"><img src="https://img.shields.io/github/last-commit/videogpt-dev/videogpt-studio" alt="Last commit"></a>
+  <img src="https://img.shields.io/badge/render-ffmpeg%20%2B%20Remotion-0b7285" alt="ffmpeg + Remotion">
+</p>
+
 ---
 
 You give it an edit document (a video plus cuts, a set of scenes, captions) and it gives you
