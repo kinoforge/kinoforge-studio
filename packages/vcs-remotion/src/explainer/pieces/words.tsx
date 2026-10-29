@@ -128,11 +128,12 @@ export function QuoteView({ piece, w, h, t, palette }: PieceProps<"quote">) {
   );
 }
 
-const OPERATOR = /[=+\-×*/÷<>≈^()]/;
+const OPERATOR = /[=+\-×*/÷<>≈^()∝≤≥≠]/;
 
 export function FormulaView({ piece, w, h, t, span, palette }: PieceProps<"formula">) {
   const size = FitText.size(piece.text, { w, h: h * 0.8 }, Math.round(h * 0.42), 2, FitText.MONO);
-  const shown = Math.ceil(piece.text.length * Ease.clamp(t / Math.min(1.4, span * 0.6)));
+  const chars = Array.from(piece.text);
+  const shown = Math.ceil(chars.length * Ease.clamp(t / Math.min(1.4, span * 0.6)));
   return (
     <div
       style={{
@@ -146,11 +147,20 @@ export function FormulaView({ piece, w, h, t, span, palette }: PieceProps<"formu
         color: palette.cardInk,
       }}
     >
-      {Array.from(piece.text.slice(0, shown)).map((char, i) => (
-        <span key={i} style={{ color: OPERATOR.test(char) ? palette.accent : undefined }}>
-          {char}
-        </span>
-      ))}
+      {/* Every character is laid out from the start, so the line never reflows as it types. */}
+      <div style={{ whiteSpace: "pre-wrap", textAlign: "center", lineHeight: 1.2 }}>
+        {chars.map((char, i) => (
+          <span
+            key={i}
+            style={{
+              color: OPERATOR.test(char) ? palette.accent : undefined,
+              opacity: i < shown ? 1 : 0,
+            }}
+          >
+            {char}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
