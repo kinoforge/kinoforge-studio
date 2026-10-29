@@ -58,6 +58,7 @@ absolute URL), renders, and either writes to `OUTPUT_DIR` or PUTs the result to 
 | Method | Path | What it does |
 |---|---|---|
 | GET | `/health` | liveness |
+| GET | `/v1/kits/explainer` | the explainer kit: board JSON schema, writer catalog, named assets |
 | POST | `/v1/render` | generic command: `{compositionId, inputProps}` in, mp4 out (bad shape is a 400) |
 | POST | `/caption` | burn a caption track onto an already cut clip |
 | POST | `/render-story` | assemble scene images or clips with voiceover, captions, and music into one mp4 |

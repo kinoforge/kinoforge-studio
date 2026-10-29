@@ -9,6 +9,7 @@ import {
   type Caption,
   type CaptionWord,
   EditDocs,
+  ExplainerKit,
   STORY_COMPOSITION_ID,
 } from "@vcs/remotion";
 import express, { type Request, type Response } from "express";
@@ -120,6 +121,12 @@ app.get("/health", (_req: Request, res: Response) => {
   res.json({ ok: true, service: "vcs-editor-service" });
 });
 
+// The explainer kit a board writer works from: its JSON schema, catalog and named assets.
+const EXPLAINER_KIT = ExplainerKit.describe();
+app.get("/v1/kits/explainer", (_req: Request, res: Response) => {
+  res.json(EXPLAINER_KIT);
+});
+
 interface CaptionBody {
   slug: string;
   clip_id: string;
@@ -177,6 +184,7 @@ interface StoryScene {
   video?: string; // generated clip (Video Mode); plays instead of the Ken Burns still
   video_seconds?: number; // the clip's own length; it loops to fill a longer scene
   video_audio?: boolean; // preserve clip-native audio instead of muting it for voiceover
+  flat?: boolean; // drawn graphics (an explainer board): no vignette or grain
   audio?: string; // path relative to OUTPUT_DIR
   seconds: number;
   words?: CaptionWord[];
@@ -231,6 +239,7 @@ app.post("/render-story", async (req: Request, res: Response) => {
       video: s.video ? mediaUrl(s.video) : undefined,
       video_seconds: s.video_seconds,
       video_audio: s.video_audio === true,
+      flat: s.flat === true || undefined,
       audio: s.audio ? mediaUrl(s.audio) : undefined,
       seconds: s.seconds,
       words: s.words || [],

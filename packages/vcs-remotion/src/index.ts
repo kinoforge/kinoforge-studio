@@ -22,5 +22,6 @@ export {
   CaptionSafeArea,
   DEFAULT_CAPTION_COLOR,
 } from "./story-captions.ts";
+export * from "./explainer/index.ts";
 export { RemotionRoot } from "./root.tsx";
 export { EditDocs, type EditDoc } from "./edit-doc.ts";

@@ -253,7 +253,8 @@ export class FfmpegDriver implements RenderDriver {
     const frames = Math.max(1, Math.round(dur * fps));
     // Captions go on after the grain and vignette so the text stays crisp, as in the preview.
     const subtitles = captions ? `,subtitles=filename='${captions}'` : "";
-    const grade = `vignette=PI/5,noise=alls=8:allf=t,format=yuv420p${subtitles}`;
+    const look = scene.flat ? "" : "vignette=PI/5,noise=alls=8:allf=t,";
+    const grade = `${look}format=yuv420p${subtitles}`;
 
     const inputs: string[] = [];
     let videoChain: string;

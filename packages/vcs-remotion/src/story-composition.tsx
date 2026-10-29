@@ -31,6 +31,8 @@ export type StoryScene = {
   video?: string;
   video_seconds?: number;
   video_audio?: boolean;
+  /** Drawn graphics (an explainer board): no vignette or grain over it. */
+  flat?: boolean;
   audio?: string;
   seconds: number;
   words: CaptionWord[];
@@ -211,8 +213,12 @@ function SceneClip({
           style={{ ...COVER, transform: `scale(${scale}) translate(${panX}%, ${panY}%)` }}
         />
       )}
-      <AbsoluteFill style={{ background: VIGNETTE, pointerEvents: "none" }} />
-      <FilmGrain />
+      {scene.flat ? null : (
+        <>
+          <AbsoluteFill style={{ background: VIGNETTE, pointerEvents: "none" }} />
+          <FilmGrain />
+        </>
+      )}
       {scene.audio ? <Audio src={scene.audio} /> : null}
       {showCaptions && (scene.words || []).length ? (
         <SceneCaptions

@@ -12,6 +12,12 @@ import {
   clipCalcMeta,
 } from "./clip-composition.tsx";
 import {
+  DEFAULT_EXPLAINER_PROPS,
+  EXPLAINER_COMPOSITION_ID,
+  ExplainerScene,
+  explainerCalcMeta,
+} from "./explainer/composition.tsx";
+import {
   DEFAULT_STORY_PROPS,
   STORY_COMPOSITION_ID,
   StoryVideo,
@@ -50,6 +56,16 @@ export function RemotionRoot() {
         height={1920}
         defaultProps={DEFAULT_STORY_PROPS}
         calculateMetadata={storyCalcMeta}
+      />
+      <Composition
+        id={EXPLAINER_COMPOSITION_ID}
+        component={ExplainerScene}
+        durationInFrames={120}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={DEFAULT_EXPLAINER_PROPS}
+        calculateMetadata={explainerCalcMeta}
       />
     </>
   );

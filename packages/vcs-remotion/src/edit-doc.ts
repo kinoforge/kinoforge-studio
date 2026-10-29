@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { CAPTIONED_COMPOSITION_ID } from "./captioned-composition.tsx";
 import { CLIP_COMPOSITION_ID } from "./clip-composition.tsx";
+import { EXPLAINER_COMPOSITION_ID } from "./explainer/composition.tsx";
+import {
+  CAPTION_RESERVES,
+  boardSchema,
+  boardThemeSchema,
+  mascotSchema,
+} from "./explainer/spec.ts";
 import { CAPTION_POSITIONS, STORY_COMPOSITION_ID } from "./story-composition.tsx";
 
 const caption = z.object({ start: z.number(), end: z.number(), text: z.string() });
@@ -39,6 +46,7 @@ const storyInput = z.object({
         video: z.string().optional(),
         video_seconds: z.number().optional(),
         video_audio: z.boolean().optional(),
+        flat: z.boolean().optional(),
         audio: z.string().optional(),
         seconds: z.number().positive(),
         words: z.array(captionWord),
@@ -58,16 +66,33 @@ const storyInput = z.object({
   musicVolume: z.number().optional(),
 });
 
+const explainerInput = z.object({
+  fps: z.number().positive(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  seconds: z.number().positive(),
+  board: boardSchema,
+  words: z.array(captionWord),
+  theme: boardThemeSchema.optional(),
+  mascot: mascotSchema.nullable().optional(),
+  reserve: z.enum(CAPTION_RESERVES).optional(),
+});
+
 export type EditDoc =
   | { compositionId: typeof CLIP_COMPOSITION_ID; inputProps: z.infer<typeof clipInput> }
   | { compositionId: typeof CAPTIONED_COMPOSITION_ID; inputProps: z.infer<typeof captionedInput> }
-  | { compositionId: typeof STORY_COMPOSITION_ID; inputProps: z.infer<typeof storyInput> };
+  | { compositionId: typeof STORY_COMPOSITION_ID; inputProps: z.infer<typeof storyInput> }
+  | {
+      compositionId: typeof EXPLAINER_COMPOSITION_ID;
+      inputProps: z.infer<typeof explainerInput>;
+    };
 
 export class EditDocs {
   private static readonly schemas = {
     [CLIP_COMPOSITION_ID]: clipInput,
     [CAPTIONED_COMPOSITION_ID]: captionedInput,
     [STORY_COMPOSITION_ID]: storyInput,
+    [EXPLAINER_COMPOSITION_ID]: explainerInput,
   } as const;
 
   static parse(compositionId: string, inputProps: unknown): EditDoc {

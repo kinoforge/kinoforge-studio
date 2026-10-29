@@ -13,6 +13,12 @@ headless render, so what you preview is what you render.
   `durationInFrames`). The fast ffmpeg render lane reuses it so its output matches the
   composition.
 - **Captions.** `CaptionTrack.activeAt` picks the caption on screen at a time.
+- **Explainer.** `ExplainerScene` draws one scene as a board: cards, charts, a terminal, a
+  stamp, icons and a talking SVG mascot, appearing on the narration's words and laid out on
+  their own (a board never sets a position). The board is data checked by `boardSchema`.
+  `ExplainerKit.describe()` turns `src/explainer` into what a writer model and a picker need:
+  the JSON schema, a catalog of the pieces with examples, and the named assets (themes,
+  mascots, hats, icons). Add a piece in `spec.ts` and its view in `pieces/`.
 - **Edit document.** `EditDocs.parse(compositionId, inputProps)`, the one zod-validated contract
   the editor produces and the renderer consumes.
 
