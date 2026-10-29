@@ -18,7 +18,11 @@ headless render, so what you preview is what you render.
   their own (a board never sets a position). The board is data checked by `boardSchema`.
   `ExplainerKit.describe()` turns `src/explainer` into what a writer model and a picker need:
   the JSON schema, a catalog of the pieces with examples, and the named assets (themes,
-  mascots, hats, icons). Add a piece in `spec.ts` and its view in `pieces/`.
+  mascots, hats, icons). Add a piece in `spec.ts` and its view in `pieces/`. Diagram pieces
+  (`show`, `flow`, `broadcast`, `mark`, `hide`, in `diagram/`) draw nodes and arrows that are
+  laid out from the arrows alone, with packets travelling along them. The diagram carries
+  from scene to scene: a scene gets the boards before it (`history`) and the video's `stage`,
+  the nodes every board names.
 - **Edit document.** `EditDocs.parse(compositionId, inputProps)`, the one zod-validated contract
   the editor produces and the renderer consumes.
 

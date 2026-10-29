@@ -14,8 +14,9 @@ function stableStringify(value: unknown): string {
   return `{${entries.join(",")}}`;
 }
 
-function jobHash(job: RenderJob): string {
+function jobHash(job: RenderJob, stamp: string): string {
   const key = stableStringify({
+    s: stamp,
     c: job.compositionId,
     i: job.inputProps,
     k: job.codec ?? "h264",
@@ -26,17 +27,20 @@ function jobHash(job: RenderJob): string {
 
 /**
  * Content-addressed render cache decorator. The output of a deterministic
- * composition depends only on (compositionId, inputProps, codec), so an
- * identical job re-uses the cached mp4 instead of re-encoding. Wraps any driver
- *, the cache survives swapping the Remotion backend for another.
+ * composition depends only on (compositionId, inputProps, codec) and the code
+ * that draws it (`stamp`), so an identical job re-uses the cached mp4 instead of
+ * re-encoding. Wraps any driver, the cache survives swapping the Remotion
+ * backend for another.
  */
 export class CachingDriver implements RenderDriver {
   constructor(
     private readonly inner: RenderDriver,
-    private readonly cacheDir: string) {}
+    private readonly cacheDir: string,
+    private readonly stamp: string,
+  ) {}
 
   async render(job: RenderJob, outputLocation: string): Promise<void> {
-    const cachePath = path.join(this.cacheDir, `${jobHash(job)}.mp4`);
+    const cachePath = path.join(this.cacheDir, `${jobHash(job, this.stamp)}.mp4`);
     if (fs.existsSync(cachePath)) {
       await fs.promises.mkdir(path.dirname(outputLocation), { recursive: true });
       await fs.promises.copyFile(cachePath, outputLocation);

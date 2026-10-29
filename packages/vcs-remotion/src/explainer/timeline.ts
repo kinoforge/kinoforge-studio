@@ -153,7 +153,7 @@ export class BoardStack {
     let shown: number[] = [];
     for (let i = 0; i <= index; i++) {
       if (beats[i].clear) shown = [];
-      if (PIECE_KINDS[beats[i].piece.type].weight > 0) shown.push(i);
+      if (PIECE_KINDS[beats[i].piece.type].layer === "card") shown.push(i);
       while (shown.length > 1 && BoardStack.weight(beats, shown) > capacity) shown.shift();
     }
     return shown;

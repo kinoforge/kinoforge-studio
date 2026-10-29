@@ -18,7 +18,9 @@ Every render goes through a `RenderDriver`. There are two:
 `SmartDriver` sends a job to the fast lane when it can, otherwise the rich lane. The ffmpeg
 lane reuses the Remotion composition's own crop math, so a fast cut matches the browser
 preview pixel for pixel. `CachingDriver` wraps both: an identical job (same composition and
-inputProps) reuses the cached mp4 instead of encoding again.
+inputProps, drawn by the same code) reuses the cached mp4 instead of encoding again. The code
+is `RendererStamp`, a digest of the drivers and the `@vcs/remotion` sources, so a deploy that
+changes how things are drawn never serves an old render.
 
 ```
 CachingDriver > SmartDriver > FfmpegDriver   (fast)

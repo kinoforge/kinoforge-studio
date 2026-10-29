@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 import { AbsoluteFill, type CalculateMetadataFunction, useCurrentFrame } from "remotion";
 import type { CaptionWord } from "../captions.ts";
+import { DiagramScene } from "./diagram/scene.ts";
+import type { Stage } from "./diagram/spec.ts";
+import { DiagramView } from "./diagram/view.tsx";
 import { MascotFigure } from "./mascot.tsx";
 import { Ease } from "./pieces/ease.ts";
 import { PieceView, StampView } from "./pieces/index.tsx";
@@ -20,6 +23,10 @@ export type ExplainerProps = {
   theme?: BoardTheme;
   mascot?: Mascot | null;
   reserve?: CaptionReserve;
+  /** The video's diagram nodes, and the boards of the scenes before this one: the diagram
+   *  carries on from where they left it. */
+  stage?: Stage | null;
+  history?: Board[];
 };
 
 export const DEFAULT_EXPLAINER_PROPS: ExplainerProps = {
@@ -194,6 +201,8 @@ export function ExplainerScene({
   theme,
   mascot,
   reserve = "bottom",
+  stage,
+  history = [],
 }: ExplainerProps) {
   const frame = useCurrentFrame();
   const t = frame / fps;
@@ -201,13 +210,21 @@ export function ExplainerScene({
   const beats = board.beats;
   const starts = useMemo(() => BoardCues.resolve(beats, words, seconds), [beats, words, seconds]);
   const layout = BoardLayout.of(width, height, reserve, !!mascot);
+  const diagram = DiagramScene.of(board, starts, seconds, history, layout.content);
+  const stageNodes = useMemo(() => DiagramScene.stage(stage), [stage]);
+  // A diagram scene shows one card at a time, in the band above the diagram.
+  const capacity = diagram ? 0 : layout.capacity;
+  const place = (ids: number[]) =>
+    diagram
+      ? new Map(ids.map((id) => [id, diagram.band]))
+      : BoardStack.boxes(beats, ids, layout.content);
 
   let current = -1;
   while (current + 1 < beats.length && starts[current + 1] <= t) current++;
-  const now = current >= 0 ? BoardStack.visible(beats, current, layout.capacity) : [];
-  const before = current > 0 ? BoardStack.visible(beats, current - 1, layout.capacity) : [];
-  const nowBoxes = BoardStack.boxes(beats, now, layout.content);
-  const beforeBoxes = BoardStack.boxes(beats, before, layout.content);
+  const now = current >= 0 ? BoardStack.visible(beats, current, capacity) : [];
+  const before = current > 0 ? BoardStack.visible(beats, current - 1, capacity) : [];
+  const nowBoxes = place(now);
+  const beforeBoxes = place(before);
   const p = current >= 0 ? Ease.out(t - starts[current], 0.5) : 0;
   const ids = [...new Set([...before, ...now])].filter((id) => now.includes(id) || p < 1);
 
@@ -223,6 +240,16 @@ export function ExplainerScene({
       style={{ backgroundColor: palette.background, fontFamily: BOARD_FONT, overflow: "hidden" }}
     >
       <Backdrop palette={palette} width={width} />
+      {diagram ? (
+        <DiagramView
+          script={diagram.script}
+          boxes={diagram.boxes}
+          from={diagram.from}
+          stage={stageNodes}
+          t={t}
+          palette={palette}
+        />
+      ) : null}
       {ids.map((id) => {
         const place = CardMotion.place(
           id === current ? undefined : beforeBoxes.get(id),

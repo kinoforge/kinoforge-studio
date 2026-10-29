@@ -18,6 +18,7 @@ import { type RenderJob, RenderTags } from "./driver.ts";
 import { FfmpegDriver } from "./ffmpeg-driver.ts";
 import { RemotionDriver } from "./remotion-driver.ts";
 import { SmartDriver } from "./smart-driver.ts";
+import { RendererStamp } from "./stamp.ts";
 
 const PORT = Number(process.env.PORT || 3000);
 const OUTPUT_DIR = process.env.OUTPUT_DIR || "/app/output";
@@ -33,6 +34,7 @@ const driver = new CachingDriver(
     (doc) => FfmpegDriver.supports(doc) || FfmpegDriver.supportsStory(doc),
   ),
   CACHE_DIR,
+  RendererStamp.of(),
 );
 
 const app = express();

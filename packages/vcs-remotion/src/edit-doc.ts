@@ -2,12 +2,8 @@ import { z } from "zod";
 import { CAPTIONED_COMPOSITION_ID } from "./captioned-composition.tsx";
 import { CLIP_COMPOSITION_ID } from "./clip-composition.tsx";
 import { EXPLAINER_COMPOSITION_ID } from "./explainer/composition.tsx";
-import {
-  CAPTION_RESERVES,
-  boardSchema,
-  boardThemeSchema,
-  mascotSchema,
-} from "./explainer/spec.ts";
+import { stageSchema } from "./explainer/diagram/spec.ts";
+import { CAPTION_RESERVES, boardSchema, boardThemeSchema, mascotSchema } from "./explainer/spec.ts";
 import { CAPTION_POSITIONS, STORY_COMPOSITION_ID } from "./story-composition.tsx";
 
 const caption = z.object({ start: z.number(), end: z.number(), text: z.string() });
@@ -76,6 +72,8 @@ const explainerInput = z.object({
   theme: boardThemeSchema.optional(),
   mascot: mascotSchema.nullable().optional(),
   reserve: z.enum(CAPTION_RESERVES).optional(),
+  stage: stageSchema.nullable().optional(),
+  history: z.array(boardSchema).optional(),
 });
 
 export type EditDoc =

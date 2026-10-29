@@ -5,6 +5,16 @@ export {
   type ExplainerProps,
   explainerCalcMeta,
 } from "./composition.tsx";
+export { DiagramLayout } from "./diagram/layout.ts";
+export { DiagramScene } from "./diagram/scene.ts";
+export {
+  MARK_TONES,
+  type MarkTone,
+  type Stage,
+  type StageNode,
+  stageSchema,
+} from "./diagram/spec.ts";
+export { DiagramMemory, DiagramScript } from "./diagram/state.ts";
 export { BOARD_ICON_KEYS, BOARD_ICONS, type BoardIcon } from "./icons.ts";
 export { ExplainerKit, KIT_ASSET_KINDS, type KitAsset, type KitAssetKind } from "./kit.ts";
 export { MASCOTS, MascotFigure, type MascotPose } from "./mascot.tsx";
@@ -21,7 +31,9 @@ export {
   MOODS,
   type Mood,
   PIECE_KINDS,
+  PIECE_LAYERS,
   type Piece,
+  type PieceLayer,
   type PieceType,
   boardSchema,
   boardThemeSchema,

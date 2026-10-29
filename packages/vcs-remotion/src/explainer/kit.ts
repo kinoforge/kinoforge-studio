@@ -1,8 +1,16 @@
 import { z } from "zod";
+import { stageSchema } from "./diagram/spec.ts";
 import { BOARD_ICONS } from "./icons.ts";
 import { MASCOTS } from "./mascot.tsx";
 import { EXPLAINER_COMPOSITION_ID } from "./composition.tsx";
-import { CAPTION_RESERVES, MASCOT_HATS, MOODS, PIECE_KINDS, boardSchema } from "./spec.ts";
+import {
+  CAPTION_RESERVES,
+  MASCOT_HATS,
+  MOODS,
+  PIECE_KINDS,
+  type PieceLayer,
+  boardSchema,
+} from "./spec.ts";
 import { BOARD_THEMES } from "./theme.ts";
 
 export const KIT_ASSET_KINDS = ["icon", "mascot", "hat", "theme"] as const;
@@ -20,6 +28,7 @@ type JsonSchema = {
   description?: string;
   enum?: readonly unknown[];
   const?: unknown;
+  pattern?: string;
   maxLength?: number;
   minimum?: number;
   maximum?: number;
@@ -33,7 +42,7 @@ type JsonSchema = {
 /** Field signatures for the writer, read off each piece's JSON schema. */
 class Signature {
   static of(schema: JsonSchema): string {
-    if (schema.enum) return schema.description ?? schema.enum.join("|");
+    if (schema.enum || schema.pattern) return schema.description ?? schema.enum?.join("|") ?? "id";
     switch (schema.type) {
       case "string":
         return schema.maxLength ? `text up to ${schema.maxLength} chars` : "text";
@@ -68,28 +77,50 @@ class Signature {
  *  writer model reads, and the registry of named assets a board or a picker may use. All of
  *  it is derived from spec.ts, icons.ts and the mascot rigs, so they never drift apart. */
 export class ExplainerKit {
-  static readonly VERSION = 1;
+  static readonly VERSION = 2;
 
   static schema(): Record<string, unknown> {
-    return z.toJSONSchema(boardSchema, { target: "draft-2020-12", io: "input" }) as Record<
-      string,
-      unknown
-    >;
+    return ExplainerKit.json(boardSchema);
   }
 
   static catalog(): string {
-    const pieces = Object.entries(PIECE_KINDS).map(([type, entry]) => {
-      const fields = Signature.fields(z.toJSONSchema(entry.schema) as JsonSchema);
-      return `- ${type}: ${entry.about}\n  fields: ${fields.join("; ")}\n  example: ${JSON.stringify(entry.example)}`;
-    });
+    const beats = (ExplainerKit.schema() as JsonSchema).properties?.beats ?? {};
     return [
-      `BOARD: {"mood": ${MOODS.join("|")}, "beats": 1 to 6 of {"cue": text, "piece": PIECE, "clear"?: true|false}}`,
+      `BOARD: {"mood": ${MOODS.join("|")}, "beats": ${beats.minItems} to ${beats.maxItems} of {"cue": text, "piece": PIECE, "clear"?: true|false}}`,
       "cue: words of the narration, copied exactly, where the piece appears. Beats go in narration order.",
-      "clear: true wipes the pieces shown before it. stamp is laid over the board, not stacked.",
+      "clear: true wipes the cards shown before it. stamp is laid over the board, not stacked.",
       "PIECES:",
-      ...pieces,
+      ...ExplainerKit.pieces("card", "overlay"),
+      "DIAGRAM: these pieces draw on one diagram that stays on screen into the next scenes. Its nodes are the STAGE's: use their ids. Nodes are laid out for you. A scene with any of these shows the diagram, with its other pieces one at a time in a band above it. show, flow and broadcast bring on the nodes they name; only hide takes them off.",
+      "DIAGRAM PIECES:",
+      ...ExplainerKit.pieces("diagram"),
       `ICONS: ${Object.keys(BOARD_ICONS).join(", ")}`,
     ].join("\n");
+  }
+
+  /** The format of a video's stage: the diagram nodes its boards share. */
+  static stageCatalog(): string {
+    const node = (ExplainerKit.json(stageSchema) as JsonSchema).properties?.nodes ?? {};
+    return [
+      `STAGE: {"nodes": ${node.minItems ?? 0} to ${node.maxItems} of ${Signature.of(node.items ?? {})}}`,
+      `ICONS: ${Object.keys(BOARD_ICONS).join(", ")}`,
+    ].join("\n");
+  }
+
+  private static pieces(...layers: PieceLayer[]): string[] {
+    return Object.entries(PIECE_KINDS)
+      .filter(([, entry]) => layers.includes(entry.layer))
+      .map(([type, entry]) => {
+        const fields = Signature.fields(z.toJSONSchema(entry.schema) as JsonSchema);
+        return `- ${type}: ${entry.about}\n  fields: ${fields.join("; ")}\n  example: ${JSON.stringify(entry.example)}`;
+      });
+  }
+
+  private static json(schema: z.ZodType): Record<string, unknown> {
+    return z.toJSONSchema(schema, { target: "draft-2020-12", io: "input" }) as Record<
+      string,
+      unknown
+    >;
   }
 
   static assets(): KitAsset[] {
@@ -119,6 +150,7 @@ export class ExplainerKit {
       reserves: CAPTION_RESERVES,
       schema: ExplainerKit.schema(),
       catalog: ExplainerKit.catalog(),
+      stage: { schema: ExplainerKit.json(stageSchema), catalog: ExplainerKit.stageCatalog() },
       assets: ExplainerKit.assets(),
     };
   }

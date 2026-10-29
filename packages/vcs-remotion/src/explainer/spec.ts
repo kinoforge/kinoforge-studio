@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { BOARD_ICON_KEYS } from "./icons.ts";
+import { broadcastPiece, flowPiece, hidePiece, markPiece, showPiece } from "./diagram/spec.ts";
+import { icon, text } from "./fields.ts";
 import { BOARD_THEMES } from "./theme.ts";
 
 export const MOODS = ["happy", "thinking", "surprised", "sad", "excited"] as const;
@@ -23,16 +24,18 @@ export type MascotRig = (typeof MASCOT_RIGS)[number];
 export type MascotHat = (typeof MASCOT_HATS)[number];
 export type CaptionReserve = (typeof CAPTION_RESERVES)[number];
 
-const text = (max: number) => z.string().trim().min(1).max(max);
-const icon = z.enum(BOARD_ICON_KEYS).describe("a key from ICONS");
+/** Where a piece is drawn: a card stacked on the board, laid over it, or on the diagram. */
+export const PIECE_LAYERS = ["card", "overlay", "diagram"] as const;
+export type PieceLayer = (typeof PIECE_LAYERS)[number];
 
 function kind<S extends z.ZodObject>(
   schema: S,
   weight: number,
   about: string,
   example: z.infer<S>,
+  layer: PieceLayer = "card",
 ) {
-  return { schema, weight, about, example };
+  return { schema, weight, about, example, layer };
 }
 
 const title = z.object({ type: z.literal("title"), text: text(48), kicker: text(28).optional() });
@@ -148,11 +151,13 @@ export const PIECE_KINDS = {
     text: "If the bee disappeared, man would have only four years left.",
     by: "Often misattributed",
   }),
-  stamp: kind(stamp, 0, "A rubber stamp slammed over the board: a verdict.", {
-    type: "stamp",
-    text: "MYTH",
-    tone: "bad",
-  }),
+  stamp: kind(
+    stamp,
+    0,
+    "A rubber stamp slammed over the board: a verdict.",
+    { type: "stamp", text: "MYTH", tone: "bad" },
+    "overlay",
+  ),
   icons: kind(icons, 1, "A row of icons with labels. icon must be a key from ICONS.", {
     type: "icons",
     items: [
@@ -176,6 +181,45 @@ export const PIECE_KINDS = {
     type: "formula",
     text: "flowers + bees = fruit",
   }),
+  show: kind(
+    showPiece,
+    0,
+    "Nodes pop onto the diagram, then arrows draw between them.",
+    {
+      type: "show",
+      nodes: ["client", "balancer"],
+      links: [{ from: "client", to: "balancer", label: "HTTPS" }],
+    },
+    "diagram",
+  ),
+  flow: kind(
+    flowPiece,
+    0,
+    "A packet travels node to node along a path: a request, an event, data.",
+    { type: "flow", path: ["client", "balancer", "server-1"], label: "GET /" },
+    "diagram",
+  ),
+  broadcast: kind(
+    broadcastPiece,
+    0,
+    "Packets fan out from one node to many at once.",
+    { type: "broadcast", from: "subject", to: ["phone", "website"], label: "update" },
+    "diagram",
+  ),
+  mark: kind(
+    markPiece,
+    0,
+    "Rings nodes with a tone and an optional badge: focus, good, bad (down, wrong), warn.",
+    { type: "mark", nodes: ["server-2"], tone: "bad", label: "down" },
+    "diagram",
+  ),
+  hide: kind(
+    hidePiece,
+    0,
+    "Takes nodes (with their arrows) or arrows off the diagram; all: true empties it.",
+    { type: "hide", links: [{ from: "client", to: "server-1" }] },
+    "diagram",
+  ),
 } as const;
 
 export type PieceType = keyof typeof PIECE_KINDS;
@@ -195,6 +239,11 @@ export const pieceSchema = z.discriminatedUnion("type", [
   progress,
   timeline,
   formula,
+  showPiece,
+  flowPiece,
+  broadcastPiece,
+  markPiece,
+  hidePiece,
 ]);
 export type Piece = z.infer<typeof pieceSchema>;
 export type PieceOf<T extends PieceType> = Extract<Piece, { type: T }>;
@@ -208,7 +257,7 @@ export type Beat = z.infer<typeof beatSchema>;
 
 export const boardSchema = z.object({
   mood: z.enum(MOODS),
-  beats: z.array(beatSchema).min(1).max(6),
+  beats: z.array(beatSchema).min(1).max(8),
 });
 export type Board = z.infer<typeof boardSchema>;
 
