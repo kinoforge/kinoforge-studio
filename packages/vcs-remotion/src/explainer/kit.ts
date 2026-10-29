@@ -77,7 +77,7 @@ class Signature {
  *  writer model reads, and the registry of named assets a board or a picker may use. All of
  *  it is derived from spec.ts, icons.ts and the mascot rigs, so they never drift apart. */
 export class ExplainerKit {
-  static readonly VERSION = 3;
+  static readonly VERSION = 4;
 
   static schema(): Record<string, unknown> {
     return ExplainerKit.json(boardSchema);
@@ -94,20 +94,25 @@ export class ExplainerKit {
       "DIAGRAM: these pieces draw on one diagram that stays on screen into the next scenes. Its nodes are the STAGE's: use their ids. Nodes are laid out for you. A scene with any of these shows the diagram, with its other pieces one at a time in a band above it. show, flow and broadcast bring on the nodes they name; only hide takes them off.",
       "DIAGRAM PIECES:",
       ...ExplainerKit.pieces("diagram"),
-      "CODE: these pieces write in one code editor that stays on screen into the next scenes. Its files are the STAGE's: use their ids, and copy line text exactly from them. A scene with any of these shows the editor, with its other pieces one at a time beside it. A board draws on the diagram or in the code, never both.",
+      "CODE: these pieces write in one code editor that stays on screen into the next scenes. Its files are the STAGE's: use their ids, and copy line text exactly from them. A scene with any of these shows the editor, with its other pieces one at a time beside it.",
       "CODE PIECES:",
       ...ExplainerKit.pieces("code"),
+      "ROAD: these pieces happen on one road seen from above that stays on screen into the next scenes, cars and all. you is the learner's car, which drives up the screen; the road's arms are named from it: back (where you come from), left, ahead, right. Traffic keeps to the STAGE's road side. A scene with any of these shows the road, with its other pieces one at a time beside it.",
+      "ROAD PIECES:",
+      ...ExplainerKit.pieces("road"),
+      "A board draws on one of the diagram, the code or the road, never two.",
       `ICONS: ${Object.keys(BOARD_ICONS).join(", ")}`,
     ].join("\n");
   }
 
-  /** The format of a video's stage: the diagram nodes and the code files its boards share. */
+  /** The format of a video's stage: the diagram nodes, code files and road side its boards
+   *  share. */
   static stageCatalog(): string {
     const fields = (ExplainerKit.json(stageSchema) as JsonSchema).properties ?? {};
     const many = (field: JsonSchema = {}) =>
       `${field.minItems ?? 0} to ${field.maxItems} of ${Signature.of(field.items ?? {})}`;
     return [
-      `STAGE: {"nodes": ${many(fields.nodes)}, "files"?: ${many(fields.files)}}`,
+      `STAGE: {"nodes": ${many(fields.nodes)}, "files"?: ${many(fields.files)}, "road"?: ${Signature.of(fields.road ?? {})}}`,
       `ICONS: ${Object.keys(BOARD_ICONS).join(", ")}`,
     ].join("\n");
   }

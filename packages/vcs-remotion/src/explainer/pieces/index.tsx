@@ -1,3 +1,4 @@
+import { SignView } from "../road/sign.tsx";
 import type { Piece } from "../spec.ts";
 import type { BoardPalette } from "../theme.ts";
 import { BarsView, CompareView, CounterView, ProgressView, TerminalView } from "./data.tsx";
@@ -49,6 +50,8 @@ export function PieceView({
       return <TimelineView piece={piece} {...shared} />;
     case "formula":
       return <FormulaView piece={piece} {...shared} />;
+    case "sign":
+      return <SignView piece={piece} {...shared} />;
     case "stamp":
       return null;
   }

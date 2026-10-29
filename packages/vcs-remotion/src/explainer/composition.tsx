@@ -8,6 +8,8 @@ import { DiagramView } from "./diagram/view.tsx";
 import { MascotFigure } from "./mascot.tsx";
 import { Ease } from "./pieces/ease.ts";
 import { PieceView, StampView } from "./pieces/index.tsx";
+import { RoadScene } from "./road/scene.ts";
+import { RoadView } from "./road/view.tsx";
 import type { Beat, Board, CaptionReserve, Mascot } from "./spec.ts";
 import type { Stage } from "./stage.ts";
 import { BOARD_FONT, type BoardPalette, type BoardTheme, BoardThemes } from "./theme.ts";
@@ -25,8 +27,8 @@ export type ExplainerProps = {
   theme?: BoardTheme;
   mascot?: Mascot | null;
   reserve?: CaptionReserve;
-  /** The video's diagram nodes and code files, and the boards of the scenes before this one:
-   *  the diagram and the code carry on from where they left them. */
+  /** The video's diagram nodes, code files and road side, and the boards of the scenes before
+   *  this one: the diagram, the code and the road carry on from where they left them. */
   stage?: Stage | null;
   history?: Board[];
 };
@@ -218,8 +220,10 @@ export function ExplainerScene({
   const code = diagram
     ? null
     : CodeScene.of(board, starts, seconds, history, layout.content, files);
-  // A diagram or code scene shows one card at a time, in the band above it.
-  const band = diagram?.band ?? code?.band;
+  const road =
+    diagram || code ? null : RoadScene.of(board, starts, seconds, history, layout.content, stage);
+  // A scene on a surface (diagram, code, road) shows one card at a time, in a band beside it.
+  const band = diagram?.band ?? code?.band ?? road?.band;
   const capacity = band ? 0 : layout.capacity;
   const place = (ids: number[]) =>
     band ? new Map(ids.map((id) => [id, band])) : BoardStack.boxes(beats, ids, layout.content);
@@ -256,6 +260,7 @@ export function ExplainerScene({
         />
       ) : null}
       {code ? <CodeView plan={code} t={t} palette={palette} /> : null}
+      {road ? <RoadView plan={road} t={t} palette={palette} /> : null}
       {ids.map((id) => {
         const place = CardMotion.place(
           id === current ? undefined : beforeBoxes.get(id),

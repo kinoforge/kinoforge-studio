@@ -14,6 +14,23 @@ export { DiagramScene } from "./diagram/scene.ts";
 export { MARK_COLORS, MARK_TONES, type MarkTone, type StageNode } from "./diagram/spec.ts";
 export { DiagramMemory, DiagramScript } from "./diagram/state.ts";
 export { BOARD_ICON_KEYS, BOARD_ICONS, type BoardIcon } from "./icons.ts";
+export { CAR_SIZE, RoadMap, RoadPath } from "./road/geometry.ts";
+export { RoadScene } from "./road/scene.ts";
+export {
+  ROAD_ARMS,
+  ROAD_CARS,
+  ROAD_LANES,
+  ROAD_LAYOUTS,
+  ROAD_LOOKS,
+  SIGN_KINDS,
+  TRAFFIC_SIDES,
+  type RoadArm,
+  type RoadCar,
+  type RoadLayout,
+  type SignKind,
+  type TrafficSide,
+} from "./road/spec.ts";
+export { CarPose, RoadMemory, RoadRules, RoadScript } from "./road/state.ts";
 export { ExplainerKit, KIT_ASSET_KINDS, type KitAsset, type KitAssetKind } from "./kit.ts";
 export { MASCOTS, MascotFigure, type MascotPose } from "./mascot.tsx";
 export {

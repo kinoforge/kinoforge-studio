@@ -2,6 +2,15 @@ import { z } from "zod";
 import { codePiece, focusPiece } from "./code/spec.ts";
 import { broadcastPiece, flowPiece, hidePiece, markPiece, showPiece } from "./diagram/spec.ts";
 import { icon, text } from "./fields.ts";
+import {
+  crossPiece,
+  drivePiece,
+  lookPiece,
+  measurePiece,
+  roadPiece,
+  signPiece,
+  signalPiece,
+} from "./road/spec.ts";
 import { BOARD_THEMES } from "./theme.ts";
 
 export const MOODS = ["happy", "thinking", "surprised", "sad", "excited"] as const;
@@ -25,9 +34,9 @@ export type MascotRig = (typeof MASCOT_RIGS)[number];
 export type MascotHat = (typeof MASCOT_HATS)[number];
 export type CaptionReserve = (typeof CAPTION_RESERVES)[number];
 
-/** Where a piece is drawn: a card stacked on the board, laid over it, on the diagram or in
- *  the code editor. */
-export const PIECE_LAYERS = ["card", "overlay", "diagram", "code"] as const;
+/** Where a piece is drawn: a card stacked on the board, laid over it, on the diagram, in the
+ *  code editor or on the road. */
+export const PIECE_LAYERS = ["card", "overlay", "diagram", "code", "road"] as const;
 export type PieceLayer = (typeof PIECE_LAYERS)[number];
 
 function kind<S extends z.ZodObject>(
@@ -183,6 +192,12 @@ export const PIECE_KINDS = {
     type: "formula",
     text: "flowers + bees = fruit",
   }),
+  sign: kind(
+    signPiece,
+    1.2,
+    "A road sign the narration names, with what it means beside it. value is the number on a speed-limit sign.",
+    { type: "sign", kind: "give-way", label: "Give way to traffic on the ring" },
+  ),
   show: kind(
     showPiece,
     0,
@@ -236,6 +251,55 @@ export const PIECE_KINDS = {
     { type: "focus", lines: ["for (const o of this.observers)"], label: "tell them all" },
     "code",
   ),
+  road: kind(
+    roadPiece,
+    0,
+    "Sets the road the scene happens on, seen from above: straight (lanes: per direction), crossroads, junction (a T: left and right only) or roundabout. A new layout clears the cars.",
+    { type: "road", layout: "roundabout" },
+    "road",
+  ),
+  drive: kind(
+    drivePiece,
+    0,
+    "A car drives in from an arm (from: back unless said) and waits at its give-way line (to: stop), or drives through and out by an arm (to: left, ahead, right, back). A car already waiting starts from there. On a straight road stop holds a car in view as the road runs on, you low and the others ahead of you, so a car in front is driven to stop too; lane picks its lane.",
+    { type: "drive", car: "you", to: "right" },
+    "road",
+  ),
+  signal: kind(
+    signalPiece,
+    0,
+    "A car's indicator blinks on that side until it leaves; off stops it.",
+    { type: "signal", car: "you", side: "right" },
+    "road",
+  ),
+  look: kind(
+    lookPiece,
+    0,
+    "Where the driver looks, as a beam from the car (you unless said): behind is the mirrors, a shoulder the blind spot on that side.",
+    { type: "look", toward: "left", label: "traffic first" },
+    "road",
+  ),
+  measure: kind(
+    measurePiece,
+    0,
+    "A distance laid on the road ahead of a car (you unless said), in parts to scale: thinking then braking distance, the gap to the car in front.",
+    {
+      type: "measure",
+      parts: [
+        { label: "Thinking", value: 14 },
+        { label: "Braking", value: 14 },
+      ],
+      unit: "m",
+    },
+    "road",
+  ),
+  cross: kind(
+    crossPiece,
+    0,
+    "Someone walks over a crossing on that arm of the road.",
+    { type: "cross", at: "right" },
+    "road",
+  ),
 } as const;
 
 export type PieceType = keyof typeof PIECE_KINDS;
@@ -255,6 +319,7 @@ export const pieceSchema = z.discriminatedUnion("type", [
   progress,
   timeline,
   formula,
+  signPiece,
   showPiece,
   flowPiece,
   broadcastPiece,
@@ -262,6 +327,12 @@ export const pieceSchema = z.discriminatedUnion("type", [
   hidePiece,
   codePiece,
   focusPiece,
+  roadPiece,
+  drivePiece,
+  signalPiece,
+  lookPiece,
+  measurePiece,
+  crossPiece,
 ]);
 export type Piece = z.infer<typeof pieceSchema>;
 export type PieceOf<T extends PieceType> = Extract<Piece, { type: T }>;
