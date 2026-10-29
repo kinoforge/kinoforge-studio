@@ -22,7 +22,9 @@ headless render, so what you preview is what you render.
   (`show`, `flow`, `broadcast`, `mark`, `hide`, in `diagram/`) draw nodes and arrows that are
   laid out from the arrows alone, with packets travelling along them. The diagram carries
   from scene to scene: a scene gets the boards before it (`history`) and the video's `stage`,
-  the nodes every board names.
+  the nodes every board names. Code pieces (`code`, `focus`, in `code/`) write in an editor
+  the same way: the stage holds the video's short code files, `code` types a file in a few
+  lines at a time, and `focus` lights the lines a board quotes and dims the rest.
 - **Edit document.** `EditDocs.parse(compositionId, inputProps)`, the one zod-validated contract
   the editor produces and the renderer consumes.
 

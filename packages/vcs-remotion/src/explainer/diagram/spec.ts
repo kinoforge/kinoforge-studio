@@ -1,15 +1,17 @@
 import { z } from "zod";
-import { icon, text } from "../fields.ts";
+import { icon, slug, text } from "../fields.ts";
 
 export const MARK_TONES = ["focus", "good", "bad", "warn"] as const;
 export type MarkTone = (typeof MARK_TONES)[number];
+/** The palette colour each tone is drawn in. */
+export const MARK_COLORS: Record<MarkTone, "accent2" | "good" | "bad" | "warn"> = {
+  focus: "accent2",
+  good: "good",
+  bad: "bad",
+  warn: "warn",
+};
 
-const nodeKey = z
-  .string()
-  .trim()
-  .regex(/^[a-z0-9][a-z0-9-]*$/)
-  .max(24);
-const nodeId = nodeKey.describe("an id from STAGE");
+const nodeId = slug.describe("an id from STAGE");
 const link = z.object({ from: nodeId, to: nodeId, label: text(16).optional() });
 
 export const showPiece = z.object({
@@ -42,16 +44,11 @@ export const hidePiece = z.object({
 });
 
 export const stageNodeSchema = z.object({
-  id: nodeKey.describe("short kebab-case, unique"),
+  id: slug.describe("short kebab-case, unique"),
   label: text(18),
   icon,
   detail: text(26).optional(),
 });
 export type StageNode = z.infer<typeof stageNodeSchema>;
-
-/** The parts every diagram of one video is drawn from, named once so boards written apart
- *  still point at the same nodes. */
-export const stageSchema = z.object({ nodes: z.array(stageNodeSchema).max(16) });
-export type Stage = z.infer<typeof stageSchema>;
 
 export type DiagramLink = z.infer<typeof link>;

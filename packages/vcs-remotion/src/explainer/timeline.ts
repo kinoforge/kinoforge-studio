@@ -1,5 +1,5 @@
 import type { CaptionWord } from "../captions.ts";
-import { type Beat, type CaptionReserve, PIECE_KINDS } from "./spec.ts";
+import { type Beat, type Board, type CaptionReserve, PIECE_KINDS } from "./spec.ts";
 
 export interface Box {
   x: number;
@@ -30,7 +30,10 @@ export class BoardCues {
   }
 
   static tokens(text: string): string[] {
-    return text.split(/\s+/).map((word) => BoardCues.normal(word)).filter(Boolean);
+    return text
+      .split(/\s+/)
+      .map((word) => BoardCues.normal(word))
+      .filter(Boolean);
   }
 
   private static normal(word: string): string {
@@ -177,6 +180,34 @@ export class BoardStack {
 
   private static weight(beats: readonly Beat[], ids: number[]): number {
     return ids.reduce((sum, id) => sum + PIECE_KINDS[beats[id].piece.type].weight, 0);
+  }
+}
+
+/** A scene drawn on one surface (the diagram, the code): a band for its cards on top, or on
+ *  the left when `side`, and the surface in the rest. */
+export class SurfaceSplit {
+  static readonly BAND = 0.26;
+  static readonly SIDE = 0.34;
+  static readonly GAP = 0.04;
+
+  static of(board: Board, content: Box, side = false): { band: Box; area: Box } {
+    const cards = board.beats.some((beat) => PIECE_KINDS[beat.piece.type].layer === "card");
+    if (!cards) return { band: { ...content, h: 0 }, area: content };
+    if (side) {
+      const w = content.w * SurfaceSplit.SIDE;
+      const gap = content.w * SurfaceSplit.GAP;
+      const h = Math.min(content.h, w * 0.8);
+      return {
+        band: { x: content.x, y: content.y + (content.h - h) / 2, w, h },
+        area: { ...content, x: content.x + w + gap, w: content.w - w - gap },
+      };
+    }
+    const h = content.h * SurfaceSplit.BAND;
+    const gap = content.h * SurfaceSplit.GAP;
+    return {
+      band: { ...content, h },
+      area: { ...content, y: content.y + h + gap, h: content.h - h - gap },
+    };
   }
 }
 

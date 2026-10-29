@@ -1,13 +1,15 @@
 import { useMemo } from "react";
 import { AbsoluteFill, type CalculateMetadataFunction, useCurrentFrame } from "remotion";
 import type { CaptionWord } from "../captions.ts";
+import { CodeScene } from "./code/scene.ts";
+import { CodeView } from "./code/view.tsx";
 import { DiagramScene } from "./diagram/scene.ts";
-import type { Stage } from "./diagram/spec.ts";
 import { DiagramView } from "./diagram/view.tsx";
 import { MascotFigure } from "./mascot.tsx";
 import { Ease } from "./pieces/ease.ts";
 import { PieceView, StampView } from "./pieces/index.tsx";
 import type { Beat, Board, CaptionReserve, Mascot } from "./spec.ts";
+import type { Stage } from "./stage.ts";
 import { BOARD_FONT, type BoardPalette, type BoardTheme, BoardThemes } from "./theme.ts";
 import { BoardCues, BoardLayout, BoardStack, type Box } from "./timeline.ts";
 
@@ -23,8 +25,8 @@ export type ExplainerProps = {
   theme?: BoardTheme;
   mascot?: Mascot | null;
   reserve?: CaptionReserve;
-  /** The video's diagram nodes, and the boards of the scenes before this one: the diagram
-   *  carries on from where they left it. */
+  /** The video's diagram nodes and code files, and the boards of the scenes before this one:
+   *  the diagram and the code carry on from where they left them. */
   stage?: Stage | null;
   history?: Board[];
 };
@@ -212,12 +214,15 @@ export function ExplainerScene({
   const layout = BoardLayout.of(width, height, reserve, !!mascot);
   const diagram = DiagramScene.of(board, starts, seconds, history, layout.content);
   const stageNodes = useMemo(() => DiagramScene.stage(stage), [stage]);
-  // A diagram scene shows one card at a time, in the band above the diagram.
-  const capacity = diagram ? 0 : layout.capacity;
+  const files = useMemo(() => CodeScene.files(stage), [stage]);
+  const code = diagram
+    ? null
+    : CodeScene.of(board, starts, seconds, history, layout.content, files);
+  // A diagram or code scene shows one card at a time, in the band above it.
+  const band = diagram?.band ?? code?.band;
+  const capacity = band ? 0 : layout.capacity;
   const place = (ids: number[]) =>
-    diagram
-      ? new Map(ids.map((id) => [id, diagram.band]))
-      : BoardStack.boxes(beats, ids, layout.content);
+    band ? new Map(ids.map((id) => [id, band])) : BoardStack.boxes(beats, ids, layout.content);
 
   let current = -1;
   while (current + 1 < beats.length && starts[current + 1] <= t) current++;
@@ -250,6 +255,7 @@ export function ExplainerScene({
           palette={palette}
         />
       ) : null}
+      {code ? <CodeView plan={code} t={t} palette={palette} /> : null}
       {ids.map((id) => {
         const place = CardMotion.place(
           id === current ? undefined : beforeBoxes.get(id),

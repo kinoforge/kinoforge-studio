@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { codePiece, focusPiece } from "./code/spec.ts";
 import { broadcastPiece, flowPiece, hidePiece, markPiece, showPiece } from "./diagram/spec.ts";
 import { icon, text } from "./fields.ts";
 import { BOARD_THEMES } from "./theme.ts";
@@ -24,8 +25,9 @@ export type MascotRig = (typeof MASCOT_RIGS)[number];
 export type MascotHat = (typeof MASCOT_HATS)[number];
 export type CaptionReserve = (typeof CAPTION_RESERVES)[number];
 
-/** Where a piece is drawn: a card stacked on the board, laid over it, or on the diagram. */
-export const PIECE_LAYERS = ["card", "overlay", "diagram"] as const;
+/** Where a piece is drawn: a card stacked on the board, laid over it, on the diagram or in
+ *  the code editor. */
+export const PIECE_LAYERS = ["card", "overlay", "diagram", "code"] as const;
 export type PieceLayer = (typeof PIECE_LAYERS)[number];
 
 function kind<S extends z.ZodObject>(
@@ -141,7 +143,7 @@ export const PIECE_KINDS = {
     right: { title: "Wasps", items: ["Hunt pests"] },
     winner: "left",
   }),
-  terminal: kind(terminal, 1.4, "A terminal window typing lines of code or commands.", {
+  terminal: kind(terminal, 1.4, "A terminal window typing shell commands.", {
     type: "terminal",
     title: "bash",
     lines: ["npm install bees", "bees --pollinate"],
@@ -220,6 +222,20 @@ export const PIECE_KINDS = {
     { type: "hide", links: [{ from: "client", to: "server-1" }] },
     "diagram",
   ),
+  code: kind(
+    codePiece,
+    0,
+    "Opens a STAGE file and types it in, down to the line holding `through` (all of it without); a later code beat on the same file types on from there.",
+    { type: "code", file: "subject", through: "attach(observer" },
+    "code",
+  ),
+  focus: kind(
+    focusPiece,
+    0,
+    "Lights the lines of the open file that hold each text and dims the rest, with an optional badge: focus, good, bad (a bug, a smell), warn.",
+    { type: "focus", lines: ["for (const o of this.observers)"], label: "tell them all" },
+    "code",
+  ),
 } as const;
 
 export type PieceType = keyof typeof PIECE_KINDS;
@@ -244,6 +260,8 @@ export const pieceSchema = z.discriminatedUnion("type", [
   broadcastPiece,
   markPiece,
   hidePiece,
+  codePiece,
+  focusPiece,
 ]);
 export type Piece = z.infer<typeof pieceSchema>;
 export type PieceOf<T extends PieceType> = Extract<Piece, { type: T }>;

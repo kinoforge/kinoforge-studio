@@ -3,15 +3,8 @@ import { Ease } from "../pieces/ease.ts";
 import { BOARD_MONO, type BoardPalette } from "../theme.ts";
 import { type Box, FitText } from "../timeline.ts";
 import { DiagramLayout, type Point } from "./layout.ts";
-import type { MarkTone, StageNode } from "./spec.ts";
+import { MARK_COLORS, type StageNode } from "./spec.ts";
 import type { DiagramScript, Ring, Span } from "./state.ts";
-
-const TONE_COLORS: Record<MarkTone, "accent2" | "good" | "bad" | "warn"> = {
-  focus: "accent2",
-  good: "good",
-  bad: "bad",
-  warn: "warn",
-};
 
 /** A node's look when the stage never named it: its id read as words. */
 class NodeNames {
@@ -71,7 +64,7 @@ function DiagramNode({
 }) {
   const icon = "icon" in look ? BOARD_ICONS[look.icon]?.icon : undefined;
   const detail = "detail" in look ? look.detail : undefined;
-  const tone = ring ? palette[TONE_COLORS[ring.tone]] : null;
+  const tone = ring ? palette[MARK_COLORS[ring.tone]] : null;
   const label = FitText.size(
     look.label,
     { w: box.w * 0.88, h: box.h * (detail ? 0.3 : 0.42) },
@@ -177,12 +170,47 @@ function DiagramNode({
   );
 }
 
+/** Where each arrow's label sits along it: halfway, or nearer one end when that keeps it off
+ *  a label already placed. */
+class LabelSpots {
+  static readonly SPOTS = [0.5, 0.3, 0.7, 0.2, 0.8];
+
+  static of(
+    arrows: readonly { key: string; a: Point; b: Point; label?: string }[],
+    stroke: number,
+  ) {
+    const taken: Box[] = [];
+    const out = new Map<string, number>();
+    for (const { key, a, b, label } of arrows) {
+      if (!label) continue;
+      const w = label.length * FitText.SANS * stroke * 6 + stroke * 5;
+      const h = stroke * 9;
+      const at = (p: number): Box => ({
+        x: a.x + (b.x - a.x) * p - w / 2,
+        y: a.y + (b.y - a.y) * p - h / 2,
+        w,
+        h,
+      });
+      const clear = (box: Box) => !taken.some((other) => LabelSpots.overlap(box, other));
+      const spot = LabelSpots.SPOTS.find((p) => clear(at(p))) ?? 0.5;
+      taken.push(at(spot));
+      out.set(key, spot);
+    }
+    return out;
+  }
+
+  private static overlap(a: Box, b: Box): boolean {
+    return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  }
+}
+
 function Arrow({
   a,
   b,
   draw,
   fade,
   label,
+  spot,
   stroke,
   palette,
 }: {
@@ -191,6 +219,7 @@ function Arrow({
   draw: number;
   fade: number;
   label?: string;
+  spot: number;
   stroke: number;
   palette: BoardPalette;
 }) {
@@ -203,7 +232,7 @@ function Arrow({
   const back = { x: tip.x - ux * head, y: tip.y - uy * head };
   const side = { x: -uy * head * 0.55, y: ux * head * 0.55 };
   const color = palette.muted;
-  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const mid = { x: a.x + (b.x - a.x) * spot, y: a.y + (b.y - a.y) * spot };
   return (
     <g opacity={1 - fade}>
       <line
@@ -298,6 +327,27 @@ export function DiagramView({
       ),
     );
 
+  const arrows = script.arrows.flatMap((link) => {
+    const a = placed.get(link.from);
+    const b = placed.get(link.to);
+    if (!a || !b || !shows(link.from) || !shows(link.to)) return [];
+    const key = `${link.from}>${link.to}`;
+    const span = script.links.get(key);
+    if (!span || (span.enter != null && t < span.enter)) return [];
+    const [start, end] = DiagramLayout.ends(a, b, gap);
+    return [
+      {
+        key,
+        a: start,
+        b: end,
+        label: link.label,
+        draw: span.enter == null ? carried : Ease.out(t - span.enter, 0.45),
+        fade: span.leave == null ? 0 : Ease.out(t - span.leave, 0.4),
+      },
+    ];
+  });
+  const spots = LabelSpots.of(arrows, stroke);
+
   return (
     <>
       <svg
@@ -305,28 +355,19 @@ export function DiagramView({
         width="100%"
         height="100%"
       >
-        {script.arrows.map((link) => {
-          const a = placed.get(link.from);
-          const b = placed.get(link.to);
-          if (!a || !b || !shows(link.from) || !shows(link.to)) return null;
-          const span = script.links.get(`${link.from}>${link.to}`);
-          if (!span || (span.enter != null && t < span.enter)) return null;
-          const draw = span.enter == null ? carried : Ease.out(t - span.enter, 0.45);
-          const fade = span.leave == null ? 0 : Ease.out(t - span.leave, 0.4);
-          const [start, end] = DiagramLayout.ends(a, b, gap);
-          return (
-            <Arrow
-              key={`${link.from}>${link.to}`}
-              a={start}
-              b={end}
-              draw={draw}
-              fade={fade}
-              label={link.label}
-              stroke={stroke}
-              palette={palette}
-            />
-          );
-        })}
+        {arrows.map(({ key, a, b, label, draw, fade }) => (
+          <Arrow
+            key={key}
+            a={a}
+            b={b}
+            draw={draw}
+            fade={fade}
+            label={label}
+            spot={spots.get(key) ?? 0.5}
+            stroke={stroke}
+            palette={palette}
+          />
+        ))}
         {script.trips.map((trip, i) => {
           const local = t - trip.at;
           const total = trip.hops.length * trip.hop;

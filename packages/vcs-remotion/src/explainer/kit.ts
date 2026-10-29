@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { stageSchema } from "./diagram/spec.ts";
 import { BOARD_ICONS } from "./icons.ts";
 import { MASCOTS } from "./mascot.tsx";
 import { EXPLAINER_COMPOSITION_ID } from "./composition.tsx";
@@ -11,6 +10,7 @@ import {
   type PieceLayer,
   boardSchema,
 } from "./spec.ts";
+import { stageSchema } from "./stage.ts";
 import { BOARD_THEMES } from "./theme.ts";
 
 export const KIT_ASSET_KINDS = ["icon", "mascot", "hat", "theme"] as const;
@@ -77,7 +77,7 @@ class Signature {
  *  writer model reads, and the registry of named assets a board or a picker may use. All of
  *  it is derived from spec.ts, icons.ts and the mascot rigs, so they never drift apart. */
 export class ExplainerKit {
-  static readonly VERSION = 2;
+  static readonly VERSION = 3;
 
   static schema(): Record<string, unknown> {
     return ExplainerKit.json(boardSchema);
@@ -94,15 +94,20 @@ export class ExplainerKit {
       "DIAGRAM: these pieces draw on one diagram that stays on screen into the next scenes. Its nodes are the STAGE's: use their ids. Nodes are laid out for you. A scene with any of these shows the diagram, with its other pieces one at a time in a band above it. show, flow and broadcast bring on the nodes they name; only hide takes them off.",
       "DIAGRAM PIECES:",
       ...ExplainerKit.pieces("diagram"),
+      "CODE: these pieces write in one code editor that stays on screen into the next scenes. Its files are the STAGE's: use their ids, and copy line text exactly from them. A scene with any of these shows the editor, with its other pieces one at a time beside it. A board draws on the diagram or in the code, never both.",
+      "CODE PIECES:",
+      ...ExplainerKit.pieces("code"),
       `ICONS: ${Object.keys(BOARD_ICONS).join(", ")}`,
     ].join("\n");
   }
 
-  /** The format of a video's stage: the diagram nodes its boards share. */
+  /** The format of a video's stage: the diagram nodes and the code files its boards share. */
   static stageCatalog(): string {
-    const node = (ExplainerKit.json(stageSchema) as JsonSchema).properties?.nodes ?? {};
+    const fields = (ExplainerKit.json(stageSchema) as JsonSchema).properties ?? {};
+    const many = (field: JsonSchema = {}) =>
+      `${field.minItems ?? 0} to ${field.maxItems} of ${Signature.of(field.items ?? {})}`;
     return [
-      `STAGE: {"nodes": ${node.minItems ?? 0} to ${node.maxItems} of ${Signature.of(node.items ?? {})}}`,
+      `STAGE: {"nodes": ${many(fields.nodes)}, "files"?: ${many(fields.files)}}`,
       `ICONS: ${Object.keys(BOARD_ICONS).join(", ")}`,
     ].join("\n");
   }
