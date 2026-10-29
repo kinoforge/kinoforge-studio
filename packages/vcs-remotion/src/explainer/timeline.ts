@@ -183,26 +183,32 @@ export class BoardStack {
   }
 }
 
-/** A scene drawn on one surface (the diagram, the code): a band for its cards on top, or on
- *  the left when `side`, and the surface in the rest. */
+/** A scene drawn on one surface (the diagram, the code, the road, the map): a band for its
+ *  cards on top, or on the left when `side`, and the surface in the rest. The band grows for
+ *  a big card (a chat, a browser), up to GROW more of the frame. */
 export class SurfaceSplit {
   static readonly BAND = 0.26;
   static readonly SIDE = 0.34;
+  static readonly GROW = 0.16;
   static readonly GAP = 0.04;
 
   static of(board: Board, content: Box, side = false): { band: Box; area: Box } {
-    const cards = board.beats.some((beat) => PIECE_KINDS[beat.piece.type].layer === "card");
-    if (!cards) return { band: { ...content, h: 0 }, area: content };
+    const weights = board.beats
+      .map((beat) => PIECE_KINDS[beat.piece.type])
+      .filter((kind) => kind.layer === "card")
+      .map((kind) => kind.weight);
+    if (!weights.length) return { band: { ...content, h: 0 }, area: content };
+    const grow = SurfaceSplit.GROW * Math.min(1, Math.max(0, Math.max(...weights) - 1.2) / 0.8);
     if (side) {
-      const w = content.w * SurfaceSplit.SIDE;
+      const w = content.w * (SurfaceSplit.SIDE + grow);
       const gap = content.w * SurfaceSplit.GAP;
-      const h = Math.min(content.h, w * 0.8);
+      const h = Math.min(content.h, w * (0.8 + grow * 2));
       return {
         band: { x: content.x, y: content.y + (content.h - h) / 2, w, h },
         area: { ...content, x: content.x + w + gap, w: content.w - w - gap },
       };
     }
-    const h = content.h * SurfaceSplit.BAND;
+    const h = content.h * (SurfaceSplit.BAND + grow);
     const gap = content.h * SurfaceSplit.GAP;
     return {
       band: { ...content, h },

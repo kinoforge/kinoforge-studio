@@ -3,7 +3,7 @@ import { BOARD_FONT, type BoardPalette } from "../theme.ts";
 import { type Box, FitText } from "../timeline.ts";
 import { CAR_SIZE, CarKinds, type Point, type Pose, RoadMap } from "./geometry.ts";
 import type { RoadPlan } from "./scene.ts";
-import type { RoadArm, RoadCar, RoadLook } from "./spec.ts";
+import type { LightState, RoadArm, RoadCar, RoadLook } from "./spec.ts";
 import { CarPose, type Era, type Measure, RoadScript } from "./state.ts";
 
 /** The road's own colours on a theme: dark asphalt on light boards, chalk-like on dark ones.
@@ -93,28 +93,111 @@ function Stripe({
 const LINE = 0.007;
 const DASH = "0.04 0.04";
 
-/** A straight road, its lines drawn top to bottom: they roll toward the viewer, so cars that
- *  hold in view read as driving on. */
-function Straight({ map, ink, t }: { map: RoadMap; ink: Ink; t: number }) {
+const PARKED_CARS: RoadCar[] = ["car-2", "car-3"];
+
+/** A road along the screen (straight, motorway, car park), its lines drawn top to bottom:
+ *  they roll toward the viewer, so cars that hold in view read as driving on, until cars
+ *  park at the kerb and the road stands still. */
+function Linear({
+  era,
+  ink,
+  t,
+  palette,
+}: {
+  era: Era;
+  ink: Ink;
+  t: number;
+  palette: BoardPalette;
+}) {
+  const map = era.map;
   const far = map.extent.y + 0.4;
   const half = map.half;
-  const roll = -((t * RoadScript.SPEED) % 0.08);
+  const middle = map.middle;
+  const still = map.layout === "car-park" || era.kerb === null;
+  const ran = era.kerb == null ? t : Math.min(t, era.kerb);
+  const roll = still ? 0 : -((ran * RoadScript.SPEED) % 0.08);
   const at = (x: number): [Point, Point] => [
     { x, y: -far },
     { x, y: far },
   ];
-  const lanes = Array.from({ length: map.lanes - 1 }, (_, k) => (k + 1) * RoadMap.LANE);
+  const lanes = Array.from({ length: map.lanes - 1 }, (_, k) => middle + (k + 1) * RoadMap.LANE);
+  const kerb = era.kerb === undefined ? 0 : era.kerb === null ? 1 : Ease.out(t - era.kerb, 0.5);
+  const { deep, wide } = RoadMap.BAY;
+  const parked = map.layout === "car-park" ? map.parked() : kerb > 0 ? map.parked() : [];
   return (
     <g>
-      <rect
-        x={-half}
-        y={-far}
-        width={half * 2}
-        height={far * 2}
-        fill={ink.asphalt}
-        opacity={ink.tar}
-      />
-      {map.lanes > 1 ? (
+      <g opacity={ink.tar}>
+        <rect x={-half} y={-far} width={half * 2} height={far * 2} fill={ink.asphalt} />
+        {map.layout === "motorway" ? (
+          <path
+            d={`M ${map
+              .slip()
+              .map((p) => `${p.x} ${p.y}`)
+              .join(" L ")}`}
+            fill="none"
+            stroke={ink.asphalt}
+            strokeWidth={RoadMap.LANE}
+          />
+        ) : null}
+        {map.layout === "car-park"
+          ? [-1, 1].map((side) => (
+              <rect
+                key={side}
+                x={side > 0 ? half : -half - deep}
+                y={-far}
+                width={deep}
+                height={far * 2}
+                fill={ink.asphalt}
+              />
+            ))
+          : null}
+        {kerb > 0 ? (
+          <rect
+            x={half}
+            y={-far}
+            width={RoadMap.STRIP}
+            height={far * 2}
+            fill={ink.asphalt}
+            opacity={kerb}
+          />
+        ) : null}
+      </g>
+      {map.layout === "motorway" ? (
+        <>
+          <rect x={-middle} y={-far} width={middle * 2} height={far * 2} fill={ink.island} />
+          <Stripe
+            a={{ x: half, y: RoadMap.SLIP[0] }}
+            b={{ x: half, y: RoadMap.SLIP[1] }}
+            ink={ink}
+            width={LINE * 0.8}
+            dash={DASH}
+          />
+        </>
+      ) : null}
+      {map.layout === "car-park" ? (
+        map.bays().map((bay, k) => {
+          const x0 = bay.side > 0 ? half : -half - deep;
+          return (
+            <Stripe
+              key={k}
+              a={{ x: x0, y: bay.y - wide / 2 }}
+              b={{ x: x0 + deep, y: bay.y - wide / 2 }}
+              ink={ink}
+              width={LINE * 0.8}
+            />
+          );
+        })
+      ) : map.layout === "motorway" ? (
+        [-1, 1].map((side) => (
+          <Stripe
+            key={side}
+            a={at(side * (middle + 0.01))[0]}
+            b={at(side * (middle + 0.01))[1]}
+            ink={ink}
+            width={LINE}
+          />
+        ))
+      ) : map.lanes > 1 ? (
         <Stripe a={at(0)[0]} b={at(0)[1]} ink={ink} width={LINE * 1.4} />
       ) : (
         <Stripe a={at(0)[0]} b={at(0)[1]} ink={ink} width={LINE} dash={DASH} roll={roll} />
@@ -132,23 +215,30 @@ function Straight({ map, ink, t }: { map: RoadMap; ink: Ink; t: number }) {
           />
         )),
       )}
-      {[-1, 1].map((side) => (
-        <Stripe
-          key={side}
-          a={at(side * (half - 0.012))[0]}
-          b={at(side * (half - 0.012))[1]}
-          ink={ink}
-          width={LINE * 0.6}
-          faint
-        />
-      ))}
+      {map.layout === "car-park"
+        ? null
+        : [-1, 1].map((side) => (
+            <Stripe
+              key={side}
+              a={at(side * (half - 0.012))[0]}
+              b={at(side * (half - 0.012))[1]}
+              ink={ink}
+              width={LINE * 0.6}
+              faint
+            />
+          ))}
+      <g opacity={map.layout === "car-park" ? 1 : kerb}>
+        {parked.map((pose, k) => (
+          <CarShape key={k} car={PARKED_CARS[k % 2]} pose={pose} palette={palette} blink={null} />
+        ))}
+      </g>
     </g>
   );
 }
 
 /** A junction or a roundabout: its arms, the middle where they meet, and a give-way line
  *  across each lane coming in. */
-function Junction({ map, ink }: { map: RoadMap; ink: Ink }) {
+function Junction({ map, ink, lit }: { map: RoadMap; ink: Ink; lit: ReadonlySet<RoadArm> }) {
   const far = Math.max(map.extent.x, map.extent.y) + 0.4;
   const c = map.center;
   const half = map.half;
@@ -212,12 +302,13 @@ function Junction({ map, ink }: { map: RoadMap; ink: Ink }) {
                 faint
               />
             ))}
+            {/* A light's arm stops at a solid line; the others give way at a dashed one. */}
             <Stripe
               a={at(map.box + 0.006, 0.004)}
               b={at(map.box + 0.006, half - 0.012)}
               ink={ink}
               width={0.012}
-              dash="0.018 0.012"
+              dash={lit.has(arm) ? undefined : "0.018 0.012"}
             />
           </g>
         );
@@ -226,14 +317,26 @@ function Junction({ map, ink }: { map: RoadMap; ink: Ink }) {
   );
 }
 
-function Surface({ era, ink, t }: { era: Era; ink: Ink; t: number }) {
+function Surface({
+  era,
+  ink,
+  t,
+  palette,
+  lit,
+}: {
+  era: Era;
+  ink: Ink;
+  t: number;
+  palette: BoardPalette;
+  lit: ReadonlySet<RoadArm>;
+}) {
   const map = era.map;
   return (
     <g>
-      {map.layout === "straight" ? (
-        <Straight map={map} ink={ink} t={t} />
+      {map.linear ? (
+        <Linear era={era} ink={ink} t={t} palette={palette} />
       ) : (
-        <Junction map={map} ink={ink} />
+        <Junction map={map} ink={ink} lit={lit} />
       )}
       {[...era.zebras].map(([arm, since]) => (
         <Zebra
@@ -502,6 +605,53 @@ function MeasureMarks({
   );
 }
 
+const LAMPS: { state: LightState; color: string }[] = [
+  { state: "red", color: "#FF3B30" },
+  { state: "amber", color: "#FFB020" },
+  { state: "green", color: "#2FD06A" },
+];
+
+/** A traffic light's head, upright on screen beside the stop line, its lit lamp glowing. */
+function LightHead({
+  at,
+  size,
+  state,
+  shown,
+}: {
+  at: Point;
+  size: number;
+  state: LightState;
+  shown: number;
+}) {
+  const w = size * 0.36;
+  const h = size;
+  const r = w * 0.32;
+  return (
+    <g opacity={shown}>
+      <rect x={at.x - w * 0.12} y={at.y + h / 2} width={w * 0.24} height={h * 0.5} fill="#2A2C31" />
+      <rect
+        x={at.x - w / 2}
+        y={at.y - h / 2}
+        width={w}
+        height={h}
+        rx={w * 0.25}
+        fill="#1B1D22"
+        stroke="#00000055"
+      />
+      {LAMPS.map((lamp, k) => {
+        const cy = at.y - h / 2 + (h * (k + 0.5)) / 3;
+        const on = lamp.state === state;
+        return (
+          <g key={lamp.state}>
+            {on ? <circle cx={at.x} cy={cy} r={r * 2} fill={lamp.color} opacity={0.3} /> : null}
+            <circle cx={at.x} cy={cy} r={r} fill={on ? lamp.color : "#3A3D44"} />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 function Tag({
   at,
   text,
@@ -632,7 +782,13 @@ export function RoadView({
                 (next == null ? 1 : 1 - Ease.out(t - next, 0.35));
               return shown > 0 ? (
                 <g key={i} opacity={shown}>
-                  <Surface era={era} ink={ink} t={t} />
+                  <Surface
+                    era={era}
+                    ink={ink}
+                    t={t}
+                    palette={palette}
+                    lit={new Set(script.lights.filter((l) => l.era === i).map((l) => l.arm))}
+                  />
                 </g>
               ) : null;
             })}
@@ -763,6 +919,28 @@ export function RoadView({
           <g key={i} opacity={Ease.out(t - look.at - 0.2, 0.3)}>
             <Tag at={at} text={look.label} size={label} color={palette.accent2} toward={0} />
           </g>
+        );
+      })}
+      {[...new Set(script.lights.filter((l) => l.era === now).map((l) => l.arm))].map((arm) => {
+        const shown = script.lights.filter((l) => l.era === now && l.arm === arm && l.at <= t);
+        const light = shown.at(-1);
+        if (!light) return null;
+        const dir = map.dir(arm);
+        const along = map.box + 0.035;
+        const out = map.half + 0.05;
+        const spot = view({
+          x: map.center.x + dir.x * along + dir.y * out,
+          y: map.center.y + dir.y * along - dir.x * out,
+        });
+        const first = shown[0].at;
+        return (
+          <LightHead
+            key={arm}
+            at={spot}
+            size={unit * 0.085}
+            state={light.state}
+            shown={Ease.out(t - first, 0.35)}
+          />
         );
       })}
       {tags.map((tag, i) => (

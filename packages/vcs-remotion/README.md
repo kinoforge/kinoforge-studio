@@ -28,7 +28,12 @@ headless render, so what you preview is what you render.
   (`road`, `drive`, `signal`, `look`, `measure`, `cross`, in `road/`) play a driving lesson on a
   road seen from above (straight, crossroads, T junction, roundabout): arms are named from the
   learner's car, every lane and turn is worked out for traffic on the right, and the stage's
-  `road.side` mirrors it for traffic on the left. `sign` is a road sign card for any scene.
+  `road.side` mirrors it for traffic on the left. Motorways, car parks, traffic lights (`light`)
+  and parking (`park`) are part of it. `sign` is a road sign card for any scene. Map pieces
+  (`map`, `pin`, `route`, `zone`, in `map/`) draw on a map of the world (Natural Earth 1:110m,
+  public domain, in `map/world.ts`): pins on the stage's `places`, routes with a plane, ship or
+  car, and countries filled by ISO code. Chart and screen cards: `line`, `pie`, `numberline`,
+  `chat`, `browser`.
 - **Edit document.** `EditDocs.parse(compositionId, inputProps)`, the one zod-validated contract
   the editor produces and the renderer consumes.
 

@@ -77,7 +77,7 @@ class Signature {
  *  writer model reads, and the registry of named assets a board or a picker may use. All of
  *  it is derived from spec.ts, icons.ts and the mascot rigs, so they never drift apart. */
 export class ExplainerKit {
-  static readonly VERSION = 4;
+  static readonly VERSION = 5;
 
   static schema(): Record<string, unknown> {
     return ExplainerKit.json(boardSchema);
@@ -100,19 +100,22 @@ export class ExplainerKit {
       "ROAD: these pieces happen on one road seen from above that stays on screen into the next scenes, cars and all. you is the learner's car, which drives up the screen; the road's arms are named from it: back (where you come from), left, ahead, right. Traffic keeps to the STAGE's road side. A scene with any of these shows the road, with its other pieces one at a time beside it.",
       "ROAD PIECES:",
       ...ExplainerKit.pieces("road"),
-      "A board draws on one of the diagram, the code or the road, never two.",
+      "MAP: these pieces draw on one map of the world that stays on screen into the next scenes. Its places are the STAGE's: use their ids. Countries are ISO 3166 alpha-3 codes. A scene with any of these shows the map, with its other pieces one at a time beside it.",
+      "MAP PIECES:",
+      ...ExplainerKit.pieces("map"),
+      "A board draws on one of the diagram, the code, the road or the map, never two.",
       `ICONS: ${Object.keys(BOARD_ICONS).join(", ")}`,
     ].join("\n");
   }
 
-  /** The format of a video's stage: the diagram nodes, code files and road side its boards
-   *  share. */
+  /** The format of a video's stage: the diagram nodes, code files, road side and map places
+   *  its boards share. */
   static stageCatalog(): string {
     const fields = (ExplainerKit.json(stageSchema) as JsonSchema).properties ?? {};
     const many = (field: JsonSchema = {}) =>
       `${field.minItems ?? 0} to ${field.maxItems} of ${Signature.of(field.items ?? {})}`;
     return [
-      `STAGE: {"nodes": ${many(fields.nodes)}, "files"?: ${many(fields.files)}, "road"?: ${Signature.of(fields.road ?? {})}}`,
+      `STAGE: {"nodes": ${many(fields.nodes)}, "files"?: ${many(fields.files)}, "road"?: ${Signature.of(fields.road ?? {})}, "places"?: ${many(fields.places)}}`,
       `ICONS: ${Object.keys(BOARD_ICONS).join(", ")}`,
     ].join("\n");
   }

@@ -5,6 +5,8 @@ import { CodeScene } from "./code/scene.ts";
 import { CodeView } from "./code/view.tsx";
 import { DiagramScene } from "./diagram/scene.ts";
 import { DiagramView } from "./diagram/view.tsx";
+import { MapScene } from "./map/scene.ts";
+import { MapLayer } from "./map/view.tsx";
 import { MascotFigure } from "./mascot.tsx";
 import { Ease } from "./pieces/ease.ts";
 import { PieceView, StampView } from "./pieces/index.tsx";
@@ -27,8 +29,9 @@ export type ExplainerProps = {
   theme?: BoardTheme;
   mascot?: Mascot | null;
   reserve?: CaptionReserve;
-  /** The video's diagram nodes, code files and road side, and the boards of the scenes before
-   *  this one: the diagram, the code and the road carry on from where they left them. */
+  /** The video's diagram nodes, code files, road side and map places, and the boards of the
+   *  scenes before this one: the diagram, the code, the road and the map carry on from where
+   *  they left them. */
   stage?: Stage | null;
   history?: Board[];
 };
@@ -222,8 +225,12 @@ export function ExplainerScene({
     : CodeScene.of(board, starts, seconds, history, layout.content, files);
   const road =
     diagram || code ? null : RoadScene.of(board, starts, seconds, history, layout.content, stage);
-  // A scene on a surface (diagram, code, road) shows one card at a time, in a band beside it.
-  const band = diagram?.band ?? code?.band ?? road?.band;
+  const map =
+    diagram || code || road
+      ? null
+      : MapScene.of(board, starts, seconds, history, layout.content, stage);
+  // A scene on a surface (diagram, code, road, map) shows one card at a time, in a band beside it.
+  const band = diagram?.band ?? code?.band ?? road?.band ?? map?.band;
   const capacity = band ? 0 : layout.capacity;
   const place = (ids: number[]) =>
     band ? new Map(ids.map((id) => [id, band])) : BoardStack.boxes(beats, ids, layout.content);
@@ -261,6 +268,7 @@ export function ExplainerScene({
       ) : null}
       {code ? <CodeView plan={code} t={t} palette={palette} /> : null}
       {road ? <RoadView plan={road} t={t} palette={palette} /> : null}
+      {map ? <MapLayer plan={map} t={t} palette={palette} /> : null}
       {ids.map((id) => {
         const place = CardMotion.place(
           id === current ? undefined : beforeBoxes.get(id),

@@ -104,11 +104,26 @@ const ARM_ANGLES: Record<RoadArm, number> = {
 export class RoadMap {
   static readonly ARMS: Record<RoadLayout, readonly RoadArm[]> = {
     straight: ["back", "ahead"],
+    motorway: ["back", "ahead", "right"],
     crossroads: ["back", "left", "ahead", "right"],
     junction: ["back", "left", "right"],
     roundabout: ["back", "left", "ahead", "right"],
+    "car-park": ["back", "ahead"],
   };
+  /** Layouts along one road, where cars hold in view instead of waiting at a line. */
+  static readonly LINEAR: readonly RoadLayout[] = ["straight", "motorway", "car-park"];
   static readonly LANE = 0.1;
+  /** Half the grass between a motorway's two carriageways. */
+  static readonly MIDDLE = 0.035;
+  /** Where a car from the slip road has merged, along the learner's carriageway. */
+  static readonly MERGE = 0.02;
+  /** Where the slip road's own lane runs beside the outer lane. */
+  static readonly SLIP = [0.42, 0.16] as const;
+  static readonly BAY = { wide: 0.094, deep: 0.17 };
+  /** The parking lane at the kerb of a straight road, and its two parked cars either side of
+   *  the gap. */
+  static readonly STRIP = 0.078;
+  static readonly PARKED = [-0.25, 0.13] as const;
   static readonly GAP = 0.05;
   /** How far a car on a straight road holds ahead of the learner, and the learner itself. */
   static readonly HOLD_AHEAD = -0.22;
@@ -117,6 +132,7 @@ export class RoadMap {
   static readonly RING_HALF = 0.058;
 
   readonly center: Point;
+  readonly middle: number;
   readonly half: number;
   readonly box: number;
 
@@ -127,9 +143,14 @@ export class RoadMap {
     readonly extent: Point,
   ) {
     this.center = { x: 0, y: layout === "junction" ? -0.08 : 0 };
-    this.half = layout === "straight" ? lanes * RoadMap.LANE : RoadMap.LANE;
+    this.middle = layout === "motorway" ? RoadMap.MIDDLE : 0;
+    this.half = this.linear ? this.middle + lanes * RoadMap.LANE : RoadMap.LANE;
     this.box =
       layout === "roundabout" ? RoadMap.RING + RoadMap.RING_HALF + 0.015 : RoadMap.LANE + 0.03;
+  }
+
+  get linear(): boolean {
+    return RoadMap.LINEAR.includes(this.layout);
   }
 
   has(arm: RoadArm): boolean {
@@ -159,7 +180,7 @@ export class RoadMap {
    *  centre, on the driver's right; lane 0 is the one beside the middle of the road. */
   lanePoint(arm: RoadArm, at: number, inbound: boolean, lane = 0): Point {
     const dir = this.dir(arm);
-    const across = (lane + 0.5) * RoadMap.LANE * (inbound ? 1 : -1);
+    const across = (this.middle + (lane + 0.5) * RoadMap.LANE) * (inbound ? 1 : -1);
     return {
       x: this.center.x + dir.x * at + dir.y * across,
       y: this.center.y + dir.y * at - dir.x * across,
@@ -169,9 +190,9 @@ export class RoadMap {
   /** Where the front car waits at an arm's line, and each one queued behind it. On a straight
    *  road cars hold in view as the road runs under them: the learner (slot -1) low on the
    *  screen, the others ahead of it. */
-  stopAt(arm: RoadArm, slot: number, long: number, lane = 0): Point {
-    if (this.layout === "straight") {
-      const hold = slot < 0 ? RoadMap.HOLD_YOU : RoadMap.HOLD_AHEAD + slot * (0.12 + 0.07);
+  stopAt(arm: RoadArm, slot: number, long: number, lane = 0, at?: number): Point {
+    if (this.linear) {
+      const hold = at ?? (slot < 0 ? RoadMap.HOLD_YOU : RoadMap.HOLD_AHEAD + slot * (0.12 + 0.07));
       return this.lanePoint(arm, hold, true, lane);
     }
     return this.lanePoint(
@@ -247,6 +268,73 @@ export class RoadMap {
         10,
       ),
     ];
+  }
+
+  /** A motorway's slip road: in from the bottom right, along the lane beside the outer lane,
+   *  and into it by MERGE. */
+  slip(): Point[] {
+    const x = this.half + RoadMap.LANE / 2;
+    const far = this.reach("back");
+    const into = this.lanePoint("back", RoadMap.MERGE, true, this.lanes - 1);
+    return [
+      ...RoadPath.bezier(
+        { x: x + 0.36, y: far },
+        { x: x + 0.3, y: 0.62 },
+        { x, y: 0.66 },
+        { x, y: RoadMap.SLIP[0] },
+        16,
+      ),
+      ...RoadPath.bezier(
+        { x, y: RoadMap.SLIP[1] },
+        { x, y: RoadMap.SLIP[1] - 0.08 },
+        { x: into.x, y: into.y + 0.08 },
+        into,
+        10,
+      ),
+    ];
+  }
+
+  /** The bays of a car park, both sides of its aisle, and the free one the learner takes:
+   *  on the right, just ahead of the middle. */
+  bays(): { x: number; y: number; side: number }[] {
+    const count = Math.max(3, Math.floor((this.extent.y * 2) / RoadMap.BAY.wide));
+    const top = -(count * RoadMap.BAY.wide) / 2;
+    return [1, -1].flatMap((side) =>
+      Array.from({ length: count }, (_, k) => ({
+        x: side * (this.half + RoadMap.BAY.deep / 2),
+        y: top + (k + 0.5) * RoadMap.BAY.wide,
+        side,
+      })),
+    );
+  }
+
+  freeBay(): Point {
+    const right = this.bays().filter((bay) => bay.side > 0);
+    return right.reduce((best, bay) =>
+      Math.abs(bay.y + 0.12) < Math.abs(best.y + 0.12) ? bay : best,
+    );
+  }
+
+  /** Where a parked car stands: in the free bay facing the aisle, or in the gap at the kerb. */
+  parkSpot(): Pose {
+    if (this.layout === "car-park") return { ...this.freeBay(), angle: Math.PI };
+    const [front, rear] = RoadMap.PARKED;
+    return { x: this.half + RoadMap.STRIP / 2, y: (front + rear) / 2, angle: -Math.PI / 2 };
+  }
+
+  /** The cars already parked: in most bays of a car park, or either side of the kerb gap. */
+  parked(): Pose[] {
+    if (this.layout === "car-park") {
+      const free = this.freeBay();
+      return this.bays()
+        .filter((bay, k) => (bay.x !== free.x || bay.y !== free.y) && (k * 7 + 3) % 5 !== 0)
+        .map((bay) => ({ x: bay.x, y: bay.y, angle: bay.side > 0 ? Math.PI : 0 }));
+    }
+    return RoadMap.PARKED.map((y) => ({
+      x: this.half + RoadMap.STRIP / 2,
+      y,
+      angle: -Math.PI / 2,
+    }));
   }
 
   /** Where someone crossing an arm walks: from the kerb on one side to the other. */

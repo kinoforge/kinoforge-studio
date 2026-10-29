@@ -2,11 +2,14 @@ import { z } from "zod";
 import { codePiece, focusPiece } from "./code/spec.ts";
 import { broadcastPiece, flowPiece, hidePiece, markPiece, showPiece } from "./diagram/spec.ts";
 import { icon, text } from "./fields.ts";
+import { mapPiece, pinPiece, routePiece, zonePiece } from "./map/spec.ts";
 import {
   crossPiece,
   drivePiece,
+  lightPiece,
   lookPiece,
   measurePiece,
+  parkPiece,
   roadPiece,
   signPiece,
   signalPiece,
@@ -35,8 +38,8 @@ export type MascotHat = (typeof MASCOT_HATS)[number];
 export type CaptionReserve = (typeof CAPTION_RESERVES)[number];
 
 /** Where a piece is drawn: a card stacked on the board, laid over it, on the diagram, in the
- *  code editor or on the road. */
-export const PIECE_LAYERS = ["card", "overlay", "diagram", "code", "road"] as const;
+ *  code editor, on the road or on the map. */
+export const PIECE_LAYERS = ["card", "overlay", "diagram", "code", "road", "map"] as const;
 export type PieceLayer = (typeof PIECE_LAYERS)[number];
 
 function kind<S extends z.ZodObject>(
@@ -108,6 +111,45 @@ const timeline = z.object({
     .max(5),
 });
 const formula = z.object({ type: z.literal("formula"), text: text(40) });
+const line = z.object({
+  type: z.literal("line"),
+  points: z
+    .array(z.object({ label: text(10), value: z.number() }))
+    .min(2)
+    .max(8),
+  unit: z.string().max(8).optional(),
+});
+const pie = z.object({
+  type: z.literal("pie"),
+  items: z
+    .array(z.object({ label: text(18), value: z.number().positive() }))
+    .min(2)
+    .max(5),
+});
+const numberline = z.object({
+  type: z.literal("numberline"),
+  from: z.number(),
+  to: z.number(),
+  marks: z
+    .array(z.object({ at: z.number(), label: text(14).optional() }))
+    .min(1)
+    .max(4),
+});
+const chat = z.object({
+  type: z.literal("chat"),
+  title: text(22).optional(),
+  messages: z
+    .array(z.object({ from: z.enum(["me", "them"]), text: text(70) }))
+    .min(1)
+    .max(5),
+});
+const browser = z.object({
+  type: z.literal("browser"),
+  url: text(36),
+  heading: text(40),
+  lines: z.array(text(48)).max(3).optional(),
+  button: text(18).optional(),
+});
 
 /** Every piece a board can show: its schema, its share of the board's height, what it is
  *  for (told to the writer) and an example. Adding a piece here adds it to the writer's
@@ -192,6 +234,63 @@ export const PIECE_KINDS = {
     type: "formula",
     text: "flowers + bees = fruit",
   }),
+  line: kind(line, 1.5, "A line chart that draws itself: a trend over time.", {
+    type: "line",
+    unit: "°C",
+    points: [
+      { label: "1900", value: 13.7 },
+      { label: "1950", value: 13.9 },
+      { label: "2000", value: 14.4 },
+      { label: "2020", value: 14.9 },
+    ],
+  }),
+  pie: kind(pie, 1.5, "A donut of shares of a whole, with their percentages.", {
+    type: "pie",
+    items: [
+      { label: "Rent", value: 40 },
+      { label: "Food", value: 25 },
+      { label: "Savings", value: 35 },
+    ],
+  }),
+  numberline: kind(
+    numberline,
+    1,
+    "A number line from `from` to `to` with marks dropped on it: fractions, negatives, a range.",
+    {
+      type: "numberline",
+      from: -5,
+      to: 5,
+      marks: [
+        { at: -3, label: "-3" },
+        { at: 2, label: "2" },
+      ],
+    },
+  ),
+  chat: kind(
+    chat,
+    2,
+    "A messaging app: bubbles popping in, the person's own (me) on the right. A conversation, a scam text, a support chat.",
+    {
+      type: "chat",
+      title: "Bank",
+      messages: [
+        { from: "them", text: "Your account is locked. Tap the link to verify." },
+        { from: "me", text: "Who is this?" },
+      ],
+    },
+  ),
+  browser: kind(
+    browser,
+    1.8,
+    "A browser window: the address types in, then the page's heading, a few lines and a button. A website, a sign-up, a search.",
+    {
+      type: "browser",
+      url: "shop.example.com",
+      heading: "Free shipping today",
+      lines: ["Order before 6 pm"],
+      button: "Buy now",
+    },
+  ),
   sign: kind(
     signPiece,
     1.2,
@@ -254,7 +353,7 @@ export const PIECE_KINDS = {
   road: kind(
     roadPiece,
     0,
-    "Sets the road the scene happens on, seen from above: straight (lanes: per direction), crossroads, junction (a T: left and right only) or roundabout. A new layout clears the cars.",
+    "Sets the road the scene happens on, seen from above: straight (lanes: per direction), motorway (lanes: 2 or 3, with a slip road joining from the kerb side), crossroads, junction (a T: left and right only), roundabout or car-park (bays both sides of an aisle). A new layout clears the cars.",
     { type: "road", layout: "roundabout" },
     "road",
   ),
@@ -300,6 +399,48 @@ export const PIECE_KINDS = {
     { type: "cross", at: "right" },
     "road",
   ),
+  light: kind(
+    lightPiece,
+    0,
+    "A traffic light at an arm's stop line (back unless said) turns red, amber or green; cars wait at the line while it is red. At a crossroads, a junction or a roundabout.",
+    { type: "light", state: "red" },
+    "road",
+  ),
+  park: kind(
+    parkPiece,
+    0,
+    "Parks a car (you unless said): in a car park it drives past the free bay and reverses in; on a straight road it reverses into the gap between two parked cars at the kerb. A later drive pulls it out.",
+    { type: "park" },
+    "road",
+  ),
+  map: kind(
+    mapPiece,
+    0,
+    "Moves the map to a region. Without it the map fits the places and countries on it.",
+    { type: "map", region: "europe" },
+    "map",
+  ),
+  pin: kind(
+    pinPiece,
+    0,
+    "Drops pins on STAGE places, with their names.",
+    { type: "pin", places: ["rome", "paris"] },
+    "map",
+  ),
+  route: kind(
+    routePiece,
+    0,
+    "A route drawn from one STAGE place to another, with a plane, ship or car travelling it (plane unless said); via lists the STAGE places it passes, so a ship sails round a cape instead of over land.",
+    { type: "route", from: "lisbon", to: "calicut", via: ["cape"], mode: "ship", label: "1498" },
+    "map",
+  ),
+  zone: kind(
+    zonePiece,
+    0,
+    "Fills countries with a tone (focus unless said) and an optional label: an empire, an alliance, where something happens.",
+    { type: "zone", countries: ["FRA", "DEU", "ITA"], tone: "good", label: "founders" },
+    "map",
+  ),
 } as const;
 
 export type PieceType = keyof typeof PIECE_KINDS;
@@ -319,6 +460,11 @@ export const pieceSchema = z.discriminatedUnion("type", [
   progress,
   timeline,
   formula,
+  line,
+  pie,
+  numberline,
+  chat,
+  browser,
   signPiece,
   showPiece,
   flowPiece,
@@ -333,6 +479,12 @@ export const pieceSchema = z.discriminatedUnion("type", [
   lookPiece,
   measurePiece,
   crossPiece,
+  lightPiece,
+  parkPiece,
+  mapPiece,
+  pinPiece,
+  routePiece,
+  zonePiece,
 ]);
 export type Piece = z.infer<typeof pieceSchema>;
 export type PieceOf<T extends PieceType> = Extract<Piece, { type: T }>;

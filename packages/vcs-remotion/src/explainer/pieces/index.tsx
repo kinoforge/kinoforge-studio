@@ -1,8 +1,10 @@
 import { SignView } from "../road/sign.tsx";
 import type { Piece } from "../spec.ts";
 import type { BoardPalette } from "../theme.ts";
+import { LineView, NumberLineView, PieView } from "./charts.tsx";
 import { BarsView, CompareView, CounterView, ProgressView, TerminalView } from "./data.tsx";
 import { IconsView, ListView, StepsView, TimelineView } from "./lists.tsx";
+import { BrowserView, ChatView } from "./screens.tsx";
 import { FormulaView, NoteView, QuoteView, StampView, TitleView } from "./words.tsx";
 
 export { StampView };
@@ -52,6 +54,16 @@ export function PieceView({
       return <FormulaView piece={piece} {...shared} />;
     case "sign":
       return <SignView piece={piece} {...shared} />;
+    case "line":
+      return <LineView piece={piece} {...shared} />;
+    case "pie":
+      return <PieView piece={piece} {...shared} />;
+    case "numberline":
+      return <NumberLineView piece={piece} {...shared} />;
+    case "chat":
+      return <ChatView piece={piece} {...shared} />;
+    case "browser":
+      return <BrowserView piece={piece} {...shared} />;
     case "stamp":
       return null;
   }

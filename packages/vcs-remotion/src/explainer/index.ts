@@ -14,6 +14,10 @@ export { DiagramScene } from "./diagram/scene.ts";
 export { MARK_COLORS, MARK_TONES, type MarkTone, type StageNode } from "./diagram/spec.ts";
 export { DiagramMemory, DiagramScript } from "./diagram/state.ts";
 export { BOARD_ICON_KEYS, BOARD_ICONS, type BoardIcon } from "./icons.ts";
+export { GreatCircle, MapViews, Projection, World } from "./map/geo.ts";
+export { MapScene } from "./map/scene.ts";
+export { MAP_REGIONS, ROUTE_MODES, type MapRegion, type StagePlace } from "./map/spec.ts";
+export { MapMemory, MapScript } from "./map/state.ts";
 export { CAR_SIZE, RoadMap, RoadPath } from "./road/geometry.ts";
 export { RoadScene } from "./road/scene.ts";
 export {

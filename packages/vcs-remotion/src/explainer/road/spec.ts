@@ -1,7 +1,14 @@
 import { z } from "zod";
 import { text } from "../fields.ts";
 
-export const ROAD_LAYOUTS = ["straight", "crossroads", "junction", "roundabout"] as const;
+export const ROAD_LAYOUTS = [
+  "straight",
+  "motorway",
+  "crossroads",
+  "junction",
+  "roundabout",
+  "car-park",
+] as const;
 export type RoadLayout = (typeof ROAD_LAYOUTS)[number];
 /** The arms of a road, named from the learner's car, which always drives up the screen. */
 export const ROAD_ARMS = ["back", "left", "ahead", "right"] as const;
@@ -35,6 +42,8 @@ export const SIGN_KINDS = [
   "no-stopping",
 ] as const;
 export type SignKind = (typeof SIGN_KINDS)[number];
+export const LIGHT_STATES = ["red", "amber", "green"] as const;
+export type LightState = (typeof LIGHT_STATES)[number];
 
 const car = z.enum(ROAD_CARS);
 
@@ -74,6 +83,15 @@ export const measurePiece = z.object({
 export const crossPiece = z.object({
   type: z.literal("cross"),
   at: z.enum(ROAD_ARMS),
+});
+export const lightPiece = z.object({
+  type: z.literal("light"),
+  at: z.enum(ROAD_ARMS).optional(),
+  state: z.enum(LIGHT_STATES),
+});
+export const parkPiece = z.object({
+  type: z.literal("park"),
+  car: car.optional(),
 });
 export const signPiece = z.object({
   type: z.literal("sign"),

@@ -2,7 +2,7 @@ import { BOARD_MONO } from "../theme.ts";
 import { FitText } from "../timeline.ts";
 import { Ease, type PieceProps } from "./ease.ts";
 
-class Numbers {
+export class Numbers {
   static format(value: number, decimals: number): string {
     return value.toLocaleString("en-US", {
       minimumFractionDigits: decimals,

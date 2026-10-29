@@ -1,6 +1,7 @@
 import { type Board, PIECE_KINDS } from "../spec.ts";
 import type { Stage } from "../stage.ts";
 import { type Box, SurfaceSplit } from "../timeline.ts";
+import { RoadMap } from "./geometry.ts";
 import type { TrafficSide } from "./spec.ts";
 import { RoadMemory, RoadRules, RoadScript } from "./state.ts";
 
@@ -11,7 +12,8 @@ export interface RoadPlan {
   from: Box | null;
   band: Box;
   side: TrafficSide;
-  /** A straight road on a wide frame runs across it: the learner drives to the right. */
+  /** A road along one way (straight, motorway, car park) runs across a wide frame: the
+   *  learner drives to the right. */
   turned: boolean;
 }
 
@@ -40,7 +42,9 @@ export class RoadScene {
     }
     const turned =
       aside &&
-      [start.layout, ...roads.map((road) => road.layout)].every((layout) => layout === "straight");
+      [start.layout, ...roads.map((road) => road.layout)].every((layout) =>
+        RoadMap.LINEAR.includes(layout),
+      );
     const across = { x: area.w / unit / 2, y: area.h / unit / 2 };
     const script = new RoadScript(
       start,
