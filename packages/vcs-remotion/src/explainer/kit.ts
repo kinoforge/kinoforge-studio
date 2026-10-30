@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BOARD_ICONS } from "./icons.ts";
+import { BOARD_ICONS, BOARD_ICON_KEYS } from "./icons.ts";
 import { MASCOTS } from "./mascot.tsx";
 import { EXPLAINER_COMPOSITION_ID } from "./composition.tsx";
 import {
@@ -8,9 +8,11 @@ import {
   MOODS,
   PIECE_KINDS,
   type PieceLayer,
+  SURFACES,
+  type Surface,
   boardSchema,
 } from "./spec.ts";
-import { stageSchema } from "./stage.ts";
+import { type Stage, stageSchema } from "./stage.ts";
 import { BOARD_THEMES } from "./theme.ts";
 
 export const KIT_ASSET_KINDS = ["icon", "mascot", "hat", "theme"] as const;
@@ -37,6 +39,30 @@ type JsonSchema = {
   items?: JsonSchema;
   properties?: Record<string, JsonSchema>;
   required?: readonly string[];
+};
+
+/** How each surface is used, and the stage part that means a video draws on it. */
+const SURFACE_GUIDES: Record<Surface, { part: keyof Stage; about: string }> = {
+  diagram: {
+    part: "nodes",
+    about:
+      "DIAGRAM: a system, a structure or something moving between parts becomes one diagram that stays on screen into the next scenes, so carry on from it instead of starting over. Its nodes are the STAGE's: use their ids only. Nodes are laid out for you. show the parts as the narration names them, flow a request or an event along its path, broadcast what one part sends to many, mark the part the narration points at, hide what leaves: show, flow and broadcast bring on the nodes they name; only hide takes them off. Send things only between parts that talk to each other. A board with any of these draws on the diagram alone, with its other pieces one at a time in a band above it.",
+  },
+  code: {
+    part: "files",
+    about:
+      "CODE: code the narration walks through goes in one code editor that stays on screen into the next scenes. Its files are the STAGE's: use their ids, and copy line text exactly from them. code opens a file and types it in, a few lines at a time (through) as the narration reaches them; focus lights the lines the narration is talking about, so keep explaining the open file with focus instead of opening it again. A board with any of these draws on the editor alone, with its other pieces one at a time beside it.",
+  },
+  road: {
+    part: "road",
+    about:
+      "ROAD: a driving lesson happens on one road seen from above that stays on screen into the next scenes, cars and all, so carry on from it. you is the learner's car, which drives up the screen; the road's arms are named from it: back (where you come from), left, ahead, right. road sets where the narration is; drive brings you and other traffic in from an arm, to wait at the line or out by an arm, in the order the narration tells it. Traffic keeps to the STAGE's road side. A board with any of these draws on the road alone, with its other pieces one at a time beside it.",
+  },
+  map: {
+    part: "places",
+    about:
+      "MAP: places, countries and journeys go on one map of the world that stays on screen into the next scenes, so carry on from it. Its places are the STAGE's: use their ids only. pin the places the narration names, draw a route for a journey (by plane, ship or car, via the places it passes so a ship rounds a cape instead of crossing land), fill the countries it talks about with zone (ISO 3166 alpha-3 codes), and move the map with map only when the narration changes region. A board with any of these draws on the map alone, with its other pieces one at a time beside it.",
+  },
 };
 
 /** Field signatures for the writer, read off each piece's JSON schema. */
@@ -77,46 +103,48 @@ class Signature {
  *  writer model reads, and the registry of named assets a board or a picker may use. All of
  *  it is derived from spec.ts, icons.ts and the mascot rigs, so they never drift apart. */
 export class ExplainerKit {
-  static readonly VERSION = 5;
+  static readonly VERSION = 6;
 
   static schema(): Record<string, unknown> {
     return ExplainerKit.json(boardSchema);
   }
 
-  static catalog(): string {
+  /** What a writer reads, in parts a caller cuts to one video: the board and its cards, each
+   *  surface (kept when the stage names it or has its `part`), and the lists the stage narrows
+   *  by its `pick` field. */
+  static catalog() {
     const beats = (ExplainerKit.schema() as JsonSchema).properties?.beats ?? {};
-    return [
+    const board = [
       `BOARD: {"mood": ${MOODS.join("|")}, "beats": ${beats.minItems} to ${beats.maxItems} of {"cue": text, "piece": PIECE, "clear"?: true|false}}`,
       "cue: words of the narration, copied exactly, where the piece appears. Beats go in narration order.",
       "clear: true wipes the cards shown before it. stamp is laid over the board, not stacked.",
       "PIECES:",
       ...ExplainerKit.pieces("card", "overlay"),
-      "DIAGRAM: these pieces draw on one diagram that stays on screen into the next scenes. Its nodes are the STAGE's: use their ids. Nodes are laid out for you. A scene with any of these shows the diagram, with its other pieces one at a time in a band above it. show, flow and broadcast bring on the nodes they name; only hide takes them off.",
-      "DIAGRAM PIECES:",
-      ...ExplainerKit.pieces("diagram"),
-      "CODE: these pieces write in one code editor that stays on screen into the next scenes. Its files are the STAGE's: use their ids, and copy line text exactly from them. A scene with any of these shows the editor, with its other pieces one at a time beside it.",
-      "CODE PIECES:",
-      ...ExplainerKit.pieces("code"),
-      "ROAD: these pieces happen on one road seen from above that stays on screen into the next scenes, cars and all. you is the learner's car, which drives up the screen; the road's arms are named from it: back (where you come from), left, ahead, right. Traffic keeps to the STAGE's road side. A scene with any of these shows the road, with its other pieces one at a time beside it.",
-      "ROAD PIECES:",
-      ...ExplainerKit.pieces("road"),
-      "MAP: these pieces draw on one map of the world that stays on screen into the next scenes. Its places are the STAGE's: use their ids. Countries are ISO 3166 alpha-3 codes. A scene with any of these shows the map, with its other pieces one at a time beside it.",
-      "MAP PIECES:",
-      ...ExplainerKit.pieces("map"),
-      "A board draws on one of the diagram, the code, the road or the map, never two.",
-      `ICONS: ${Object.keys(BOARD_ICONS).join(", ")}`,
     ].join("\n");
+    return {
+      board,
+      surfaces: SURFACES.map((key) => ({
+        key,
+        part: SURFACE_GUIDES[key].part,
+        text: [
+          SURFACE_GUIDES[key].about,
+          `${key.toUpperCase()} PIECES:`,
+          ...ExplainerKit.pieces(key),
+        ].join("\n"),
+      })),
+      lists: [{ name: "ICONS", pick: "icons", keys: BOARD_ICON_KEYS }],
+    };
   }
 
   /** The format of a video's stage: the diagram nodes, code files, road side and map places
-   *  its boards share. */
+   *  its boards share, and the surfaces and icons they draw. */
   static stageCatalog(): string {
     const fields = (ExplainerKit.json(stageSchema) as JsonSchema).properties ?? {};
     const many = (field: JsonSchema = {}) =>
       `${field.minItems ?? 0} to ${field.maxItems} of ${Signature.of(field.items ?? {})}`;
     return [
-      `STAGE: {"nodes": ${many(fields.nodes)}, "files"?: ${many(fields.files)}, "road"?: ${Signature.of(fields.road ?? {})}, "places"?: ${many(fields.places)}}`,
-      `ICONS: ${Object.keys(BOARD_ICONS).join(", ")}`,
+      `STAGE: {"nodes": ${many(fields.nodes)}, "files"?: ${many(fields.files)}, "road"?: ${Signature.of(fields.road ?? {})}, "places"?: ${many(fields.places)}, "surfaces": ${many(fields.surfaces)}, "icons": ${many(fields.icons)}}`,
+      `ICONS: ${BOARD_ICON_KEYS.join(", ")}`,
     ].join("\n");
   }
 

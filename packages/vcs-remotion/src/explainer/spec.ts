@@ -41,6 +41,9 @@ export type CaptionReserve = (typeof CAPTION_RESERVES)[number];
  *  code editor, on the road or on the map. */
 export const PIECE_LAYERS = ["card", "overlay", "diagram", "code", "road", "map"] as const;
 export type PieceLayer = (typeof PIECE_LAYERS)[number];
+/** The layers a board draws on whole, at most one per board, carried from scene to scene. */
+export const SURFACES = ["diagram", "code", "road", "map"] as const satisfies readonly PieceLayer[];
+export type Surface = (typeof SURFACES)[number];
 
 function kind<S extends z.ZodObject>(
   schema: S,
