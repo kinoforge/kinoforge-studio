@@ -1,22 +1,39 @@
-import { BOARD_MONO } from "../theme.ts";
+import { createContext, useContext } from "react";
+import { BOARD_MONO, PAINTS } from "../theme.ts";
 import { FitText } from "../timeline.ts";
 import { Ease, type PieceProps } from "./ease.ts";
 
+/** The video's language, so its numbers read as that language writes them (1.629 in Italian). */
+export const BoardLanguage = createContext("en");
+
 export class Numbers {
-  static format(value: number, decimals: number): string {
-    return value.toLocaleString("en-US", {
+  static format(value: number, decimals: number, language: string): string {
+    return value.toLocaleString(Numbers.locale(language), {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     });
   }
+
+  private static locale(language: string): string {
+    try {
+      return Intl.NumberFormat.supportedLocalesOf(language).length ? language : "en";
+    } catch {
+      return "en";
+    }
+  }
+
+  static useLanguage(): string {
+    return useContext(BoardLanguage);
+  }
 }
 
 export function CounterView({ piece, w, h, t, span, palette }: PieceProps<"counter">) {
+  const language = Numbers.useLanguage();
   const decimals = piece.decimals ?? (Number.isInteger(piece.to) ? 0 : 1);
   const from = piece.from ?? 0;
   const p = Ease.out(t, Math.min(1.8, Math.max(0.8, span * 0.6)), 0.1);
-  const value = Numbers.format(from + (piece.to - from) * p, decimals);
-  const final = `${piece.prefix ?? ""}${Numbers.format(piece.to, decimals)}${piece.suffix ?? ""}`;
+  const value = Numbers.format(from + (piece.to - from) * p, decimals, language);
+  const final = `${piece.prefix ?? ""}${Numbers.format(piece.to, decimals, language)}${piece.suffix ?? ""}`;
   const big = FitText.size(final, { w, h: h * 0.62 }, Math.round(h * 0.56), 1);
   const small = FitText.size(piece.label, { w, h: h * 0.3 }, Math.round(h * 0.16), 2);
   return (
@@ -59,6 +76,7 @@ export function CounterView({ piece, w, h, t, span, palette }: PieceProps<"count
 }
 
 export function BarsView({ piece, w, h, t, span, palette }: PieceProps<"bars">) {
+  const language = Numbers.useLanguage();
   const count = piece.items.length;
   const top = Math.max(...piece.items.map((item) => item.value), 1);
   const slot = w / count;
@@ -71,7 +89,11 @@ export function BarsView({ piece, w, h, t, span, palette }: PieceProps<"bars">) 
       {piece.items.map((item, i) => {
         const grow = Ease.out(t, 0.7, Ease.stagger(i, count, span) * 0.6);
         const height = Math.max(4, (item.value / top) * plot * grow);
-        const color = item.value === top ? palette.accent : palette.accent2;
+        const color = item.color
+          ? PAINTS[item.color]
+          : item.value === top
+            ? palette.accent
+            : palette.accent2;
         return (
           <div
             key={i}
@@ -93,7 +115,7 @@ export function BarsView({ piece, w, h, t, span, palette }: PieceProps<"bars">) 
                 marginBottom: label * 0.3,
               }}
             >
-              {Numbers.format(item.value * grow, Number.isInteger(item.value) ? 0 : 1)}
+              {Numbers.format(item.value * grow, Number.isInteger(item.value) ? 0 : 1, language)}
               {piece.unit ? ` ${piece.unit}` : ""}
             </div>
             <div

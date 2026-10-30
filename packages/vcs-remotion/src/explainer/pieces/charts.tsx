@@ -4,6 +4,7 @@ import { Ease, type PieceProps } from "./ease.ts";
 
 /** A line that draws itself left to right, its points lit as it reaches them. */
 export function LineView({ piece, w, h, t, span, palette }: PieceProps<"line">) {
+  const language = Numbers.useLanguage();
   const values = piece.points.map((point) => point.value);
   const top = Math.max(...values);
   const low = Math.min(...values);
@@ -102,7 +103,7 @@ export function LineView({ piece, w, h, t, span, palette }: PieceProps<"line">) 
           fontWeight={900}
           fill={palette.cardInk}
         >
-          {Numbers.format(last.value, Number.isInteger(last.value) ? 0 : 1)}
+          {Numbers.format(last.value, Number.isInteger(last.value) ? 0 : 1, language)}
           {piece.unit ? ` ${piece.unit}` : ""}
         </text>
       ) : null}
@@ -190,6 +191,7 @@ export function PieView({ piece, w, h, t, span, palette }: PieceProps<"pie">) {
 
 /** A number line with ticks, the marks dropping onto it one at a time. */
 export function NumberLineView({ piece, w, h, t, span, palette }: PieceProps<"numberline">) {
+  const language = Numbers.useLanguage();
   const lo = Math.min(piece.from, piece.to);
   const hi = Math.max(piece.from, piece.to) === lo ? lo + 1 : Math.max(piece.from, piece.to);
   const label = Math.round(Math.min(h * 0.16, w / 22));
@@ -231,7 +233,7 @@ export function NumberLineView({ piece, w, h, t, span, palette }: PieceProps<"nu
             fontWeight={700}
             fill={palette.muted}
           >
-            {Numbers.format(v, Number.isInteger(v) ? 0 : 1)}
+            {Numbers.format(v, Number.isInteger(v) ? 0 : 1, language)}
           </text>
         </g>
       ))}

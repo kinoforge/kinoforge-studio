@@ -96,3 +96,21 @@ export class BoardThemes {
     return PALETTES[theme ?? "paper"] ?? PALETTES.paper;
   }
 }
+
+/** Named paints a piece can ask for when what it shows is a colour (a "Blue" bar is blue),
+ *  the same on every theme. */
+export const PAINTS = {
+  red: "#D7263D",
+  orange: "#F28C28",
+  yellow: "#F2C511",
+  green: "#2F9E5B",
+  blue: "#2E6FD8",
+  purple: "#7B4FC9",
+  pink: "#E85D9E",
+  brown: "#8B5A2B",
+  grey: "#8A8F98",
+  black: "#1F1B16",
+  white: "#F5F5F0",
+} as const;
+export type Paint = keyof typeof PAINTS;
+export const PAINT_NAMES = Object.keys(PAINTS) as [Paint, ...Paint[]];

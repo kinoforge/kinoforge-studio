@@ -74,6 +74,10 @@ const explainerInput = z.object({
   reserve: z.enum(CAPTION_RESERVES).optional(),
   stage: stageSchema.nullable().optional(),
   history: z.array(boardSchema).optional(),
+  language: z
+    .string()
+    .regex(/^[a-z]{2}$/)
+    .optional(),
 });
 
 export type EditDoc =

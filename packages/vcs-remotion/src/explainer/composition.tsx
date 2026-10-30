@@ -8,6 +8,7 @@ import { DiagramView } from "./diagram/view.tsx";
 import { MapScene } from "./map/scene.ts";
 import { MapLayer } from "./map/view.tsx";
 import { MascotFigure } from "./mascot.tsx";
+import { BoardLanguage } from "./pieces/data.tsx";
 import { Ease } from "./pieces/ease.ts";
 import { PieceView, StampView } from "./pieces/index.tsx";
 import { RoadScene } from "./road/scene.ts";
@@ -34,6 +35,8 @@ export type ExplainerProps = {
    *  they left them. */
   stage?: Stage | null;
   history?: Board[];
+  /** The narration's language (ISO 639-1), for how numbers are written. */
+  language?: string;
 };
 
 export const DEFAULT_EXPLAINER_PROPS: ExplainerProps = {
@@ -198,7 +201,15 @@ class ScenePose {
 /** One scene of an explainer: pieces arrive on the narration's cues and stack on a board that
  *  reflows as they come and go, beside a mascot that talks with the voice. The board is data
  *  (spec.ts); nothing here takes a position from the writer. */
-export function ExplainerScene({
+export function ExplainerScene({ language = "en", ...props }: ExplainerProps) {
+  return (
+    <BoardLanguage.Provider value={language}>
+      <BoardScene {...props} />
+    </BoardLanguage.Provider>
+  );
+}
+
+function BoardScene({
   fps,
   width,
   height,

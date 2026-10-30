@@ -14,7 +14,7 @@ import {
   signPiece,
   signalPiece,
 } from "./road/spec.ts";
-import { BOARD_THEMES } from "./theme.ts";
+import { BOARD_THEMES, PAINT_NAMES } from "./theme.ts";
 
 export const MOODS = ["happy", "thinking", "surprised", "sad", "excited"] as const;
 export const MASCOT_RIGS = ["pip", "bolt"] as const;
@@ -75,7 +75,13 @@ const counter = z.object({
 const bars = z.object({
   type: z.literal("bars"),
   items: z
-    .array(z.object({ label: text(18), value: z.number().min(0) }))
+    .array(
+      z.object({
+        label: text(18),
+        value: z.number().min(0),
+        color: z.enum(PAINT_NAMES).optional(),
+      }),
+    )
     .min(2)
     .max(6),
   unit: z.string().max(8).optional(),
@@ -182,7 +188,7 @@ export const PIECE_KINDS = {
     suffix: "%",
     label: "of crops need pollinators",
   }),
-  bars: kind(bars, 1.5, "A bar chart that grows.", {
+  bars: kind(bars, 1.5, "A bar chart that grows. A bar for a colour names it in color.", {
     type: "bars",
     unit: "kg",
     items: [

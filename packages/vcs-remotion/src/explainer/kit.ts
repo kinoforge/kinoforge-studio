@@ -103,7 +103,7 @@ class Signature {
  *  writer model reads, and the registry of named assets a board or a picker may use. All of
  *  it is derived from spec.ts, icons/ and the mascot rigs, so they never drift apart. */
 export class ExplainerKit {
-  static readonly VERSION = 7;
+  static readonly VERSION = 8;
 
   static schema(): Record<string, unknown> {
     return ExplainerKit.json(boardSchema);
