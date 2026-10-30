@@ -1,4 +1,4 @@
-import { BOARD_ICONS } from "../icons.ts";
+import { BOARD_ICONS } from "../icons/index.ts";
 import { Ease } from "../pieces/ease.ts";
 import { BOARD_MONO, type BoardPalette } from "../theme.ts";
 import { type Box, FitText } from "../timeline.ts";

@@ -59,7 +59,6 @@ import {
   Lightbulb,
   Link,
   Lock,
-  type LucideIcon,
   Magnet,
   Mail,
   MapPin,
@@ -126,13 +125,10 @@ import {
   Zap,
 } from "lucide-react";
 
-export interface BoardIconEntry {
-  icon: LucideIcon;
-  tags: readonly string[];
-}
+import type { BoardIconEntry } from "./index.ts";
 
-/** The icons a board may name: a curated set, each with words a writer or a picker finds it by. */
-export const BOARD_ICONS = {
+/** Everyday icons: people, money, work, devices, nature. */
+export const GENERAL_ICONS = {
   activity: { icon: Activity, tags: ["pulse", "health", "signal"] },
   alert: { icon: TriangleAlert, tags: ["warning", "danger", "risk"] },
   anchor: { icon: Anchor, tags: ["stable", "sea", "hold"] },
@@ -258,6 +254,3 @@ export const BOARD_ICONS = {
   x: { icon: X, tags: ["no", "wrong", "cancel"] },
   zap: { icon: Zap, tags: ["energy", "power", "electric", "fast"] },
 } as const satisfies Record<string, BoardIconEntry>;
-
-export type BoardIcon = keyof typeof BOARD_ICONS;
-export const BOARD_ICON_KEYS = Object.keys(BOARD_ICONS) as [BoardIcon, ...BoardIcon[]];

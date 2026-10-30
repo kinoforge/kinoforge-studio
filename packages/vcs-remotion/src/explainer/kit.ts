@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BOARD_ICONS, BOARD_ICON_KEYS } from "./icons.ts";
+import { BOARD_ICON_GROUPS, BOARD_ICONS, BOARD_ICON_KEYS } from "./icons/index.ts";
 import { MASCOTS } from "./mascot.tsx";
 import { EXPLAINER_COMPOSITION_ID } from "./composition.tsx";
 import {
@@ -101,9 +101,9 @@ class Signature {
 
 /** The explainer kit as data: the board's JSON schema (for any validator), the catalog a
  *  writer model reads, and the registry of named assets a board or a picker may use. All of
- *  it is derived from spec.ts, icons.ts and the mascot rigs, so they never drift apart. */
+ *  it is derived from spec.ts, icons/ and the mascot rigs, so they never drift apart. */
 export class ExplainerKit {
-  static readonly VERSION = 6;
+  static readonly VERSION = 7;
 
   static schema(): Record<string, unknown> {
     return ExplainerKit.json(boardSchema);
@@ -144,7 +144,10 @@ export class ExplainerKit {
       `${field.minItems ?? 0} to ${field.maxItems} of ${Signature.of(field.items ?? {})}`;
     return [
       `STAGE: {"nodes": ${many(fields.nodes)}, "files"?: ${many(fields.files)}, "road"?: ${Signature.of(fields.road ?? {})}, "places"?: ${many(fields.places)}, "surfaces": ${many(fields.surfaces)}, "icons": ${many(fields.icons)}}`,
-      `ICONS: ${BOARD_ICON_KEYS.join(", ")}`,
+      "ICONS:",
+      ...Object.entries(BOARD_ICON_GROUPS).map(
+        ([group, icons]) => `- ${group}: ${Object.keys(icons).join(", ")}`,
+      ),
     ].join("\n");
   }
 
