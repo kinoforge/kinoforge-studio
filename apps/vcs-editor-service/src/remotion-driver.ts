@@ -7,6 +7,8 @@ import type { RenderDriver, RenderJob } from "./driver.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REMOTION_ENTRY = path.join(__dirname, "remotion-entry.ts");
+// Browser tabs painting frames at once; Remotion's own default is half the cores.
+const CONCURRENCY = Number(process.env.RENDER_CONCURRENCY) || null;
 
 /**
  * The Remotion render backend. The only file that imports @remotion/*, so the
@@ -30,11 +32,14 @@ export class RemotionDriver implements RenderDriver {
   async render(job: RenderJob, outputLocation: string): Promise<void> {
     const { compositionId, inputProps } = EditDocs.parse(job.compositionId, job.inputProps);
     const serveUrl = await this.getBundle();
+    const codec = job.codec ?? "h264";
     const composition = await selectComposition({ serveUrl, id: compositionId, inputProps });
     await renderMedia({
       composition,
       serveUrl,
-      codec: job.codec ?? "h264",
+      codec,
+      concurrency: CONCURRENCY,
+      x264Preset: codec === "h264" ? "veryfast" : null,
       inputProps,
       outputLocation,
       metadata: job.metadata ?? null,

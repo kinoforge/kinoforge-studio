@@ -10,6 +10,7 @@ services:
       - PORT=3000
       - OUTPUT_DIR=/app/output
       - EDITOR_SERVICE_TOKEN=${EDITOR_SERVICE_TOKEN:?set EDITOR_SERVICE_TOKEN}
+      - RENDER_CONCURRENCY=${EDITOR_CPUS:-2}
     networks:
       - traefik
     labels:

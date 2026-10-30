@@ -97,6 +97,7 @@ renders leave room for anything else on the box.
 | `PORT` | `3000` | HTTP port |
 | `OUTPUT_DIR` | `/app/output` | media root (reads source, writes output) |
 | `RENDER_CACHE_DIR` | `$OUTPUT_DIR/.render-cache` | content addressed render cache |
+| `RENDER_CONCURRENCY` | half the cores | frames Remotion paints at once |
 | `FFMPEG_PATH` | `ffmpeg` | ffmpeg binary for the fast lane |
 | `EDITOR_SERVICE_TOKEN` | unset | bearer every caller must send; unset disables the check (local dev) |
 
