@@ -15,7 +15,7 @@ services:
       - traefik
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vcs-editor-service.rule=Host(`${EDITOR_HOST:-renderer-svc.videogpt.dev}`)"
+      - "traefik.http.routers.vcs-editor-service.rule=(Host(`renderer-svc.videogpt.dev`) || Host(`${EDITOR_HOST:-renderer-svc.kinoforge.dev}`))"
       - "traefik.http.routers.vcs-editor-service.entrypoints=websecure"
       - "traefik.http.routers.vcs-editor-service.tls=true"
       - "traefik.http.routers.vcs-editor-service.tls.certresolver=letsencrypt"

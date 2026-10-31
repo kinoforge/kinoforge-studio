@@ -82,7 +82,7 @@ cp .env.example .env   # set EDITOR_SERVICE_TOKEN (openssl rand -hex 32), EDITOR
 docker compose up -d --build
 ```
 
-Point `EDITOR_HOST` (default `renderer-svc.videogpt.dev`) at the box. Core sets
+Point `EDITOR_HOST` (default `renderer-svc.kinoforge.dev`) at the box. Core sets
 `EDITOR_SERVICE_URL=https://<EDITOR_HOST>` and the same `EDITOR_SERVICE_TOKEN`. Every call
 must send `Authorization: Bearer <token>`; only `/health` and headless Chromium's own `/media`
 reads from inside the container skip it. Core passes signed vcs-assets URLs for inputs and
