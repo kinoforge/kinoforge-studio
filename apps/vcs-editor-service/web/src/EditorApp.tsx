@@ -73,7 +73,7 @@ export function EditorApp({ initialDoc }: { initialDoc?: Partial<ClipProps> }) {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">VideoGPT Studio</div>
+        <div className="brand">Kinoforge Studio</div>
         <div className="topbar-right">
           {status && <span className="status">{status}</span>}
           {resultUrl && (

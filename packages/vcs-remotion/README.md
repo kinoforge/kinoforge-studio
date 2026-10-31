@@ -1,6 +1,6 @@
 # @vcs/remotion
 
-Shared Remotion compositions and the edit-document contract for VideoGPT Studio.
+Shared Remotion compositions and the edit-document contract for Kinoforge Studio.
 One set of composition code drives both the browser `<Player>` preview and the
 headless render, so what you preview is what you render.
 

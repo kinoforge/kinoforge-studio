@@ -1,6 +1,6 @@
 # vcs-editor-service
 
-The render server and web editor for VideoGPT Studio. You give it an edit document, it gives
+The render server and web editor for Kinoforge Studio. You give it an edit document, it gives
 you back an mp4. The web editor is a small UI for building that document by hand.
 
 It does not find moments or transcribe. Something upstream decides what to render and calls
