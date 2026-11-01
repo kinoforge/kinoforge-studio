@@ -183,6 +183,7 @@ app.post("/caption", async (req: Request, res: Response) => {
 
 interface StoryScene {
   image: string; // path relative to OUTPUT_DIR
+  images?: string[]; // a stills scene's pictures in turn (the first is image)
   video?: string; // generated clip (Video Mode); plays instead of the Ken Burns still
   video_seconds?: number; // the clip's own length; it loops to fill a longer scene
   video_audio?: boolean; // preserve clip-native audio instead of muting it for voiceover
@@ -238,6 +239,7 @@ app.post("/render-story", async (req: Request, res: Response) => {
     music: b.music ? mediaUrl(b.music) : undefined,
     scenes: b.scenes.map((s) => ({
       image: s.image ? mediaUrl(s.image) : "",
+      images: Array.isArray(s.images) ? s.images.map((i) => mediaUrl(i)) : undefined,
       video: s.video ? mediaUrl(s.video) : undefined,
       video_seconds: s.video_seconds,
       video_audio: s.video_audio === true,

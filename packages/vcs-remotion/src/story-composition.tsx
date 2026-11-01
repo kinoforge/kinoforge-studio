@@ -20,14 +20,12 @@ import {
   DEFAULT_CAPTION_COLOR,
 } from "./story-captions.ts";
 
-export {
-  CAPTION_POSITIONS,
-  CaptionPlacement,
-  type CaptionPosition,
-} from "./story-captions.ts";
+export { CAPTION_POSITIONS, CaptionPlacement, type CaptionPosition } from "./story-captions.ts";
 
 export type StoryScene = {
   image: string;
+  /** A stills scene's pictures, shown one after another while it plays (the first is `image`). */
+  images?: string[];
   video?: string;
   video_seconds?: number;
   video_audio?: boolean;
@@ -58,6 +56,8 @@ export const STORY_COMPOSITION_ID = "StoryVideo";
 const DEFAULT_SCENE_GAP = 0.5;
 const VIGNETTE = "radial-gradient(125% 120% at 50% 45%, rgba(0,0,0,0) 52%, rgba(0,0,0,0.4) 100%)";
 const COVER = { width: "100%", height: "100%", objectFit: "cover" as const };
+/** Frames one picture fades into the next over. */
+const STILL_FADE = 12;
 
 export const DEFAULT_STORY_PROPS: StoryVideoProps = {
   scenes: [],
@@ -166,6 +166,57 @@ function FilmGrain() {
   );
 }
 
+/** One picture's slow zoom and drift over its time on screen; `zoomIn` turns it around. */
+function MovingStill({ src, zoomIn }: { src: string; zoomIn: boolean }) {
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+  const range = [0, durationInFrames];
+  const clamp = { extrapolateRight: "clamp" } as const;
+  const scale = interpolate(frame, range, zoomIn ? [1.05, 1.14] : [1.14, 1.05], clamp);
+  const panX = interpolate(frame, range, zoomIn ? [-1.8, 1.8] : [1.8, -1.8], clamp);
+  const panY = interpolate(frame, range, [1.2, -1.2], clamp);
+  return (
+    <Img
+      src={src}
+      style={{ ...COVER, transform: `scale(${scale}) translate(${panX}%, ${panY}%)` }}
+    />
+  );
+}
+
+/** A scene's pictures in turn, each an equal share of the scene, each fading in over the one
+ *  before; the zoom alternates so cuts never repeat a move. */
+function StillSequence({ images, index }: { images: string[]; index: number }) {
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+  const share = durationInFrames / images.length;
+  return (
+    <>
+      {images.map((src, i) => {
+        const from = Math.round(i * share);
+        const until = Math.round((i + 1) * share);
+        const fadeIn =
+          i === 0
+            ? 1
+            : interpolate(frame, [from, from + STILL_FADE], [0, 1], {
+                extrapolateLeft: "clamp",
+                extrapolateRight: "clamp",
+              });
+        return (
+          <Sequence
+            key={i}
+            from={from}
+            durationInFrames={until - from + (i < images.length - 1 ? STILL_FADE : 0)}
+          >
+            <AbsoluteFill style={{ opacity: fadeIn }}>
+              <MovingStill src={src} zoomIn={(index + i) % 2 === 0} />
+            </AbsoluteFill>
+          </Sequence>
+        );
+      })}
+    </>
+  );
+}
+
 function SceneClip({
   scene,
   index,
@@ -185,17 +236,10 @@ function SceneClip({
   captionScale: number;
   captionPosition: CaptionPosition;
 }) {
-  const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const clipFrames = scene.video_seconds
     ? Math.max(1, Math.round(scene.video_seconds * fps))
     : durationInFrames;
-  const zoomIn = index % 2 === 0;
-  const range = [0, durationInFrames];
-  const clamp = { extrapolateRight: "clamp" } as const;
-  const scale = interpolate(frame, range, zoomIn ? [1.05, 1.14] : [1.14, 1.05], clamp);
-  const panX = interpolate(frame, range, zoomIn ? [-1.8, 1.8] : [1.8, -1.8], clamp);
-  const panY = interpolate(frame, range, [1.2, -1.2], clamp);
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black", overflow: "hidden" }}>
@@ -207,11 +251,10 @@ function SceneClip({
             <OffthreadVideo src={scene.video} style={COVER} muted />
           </Loop>
         )
+      ) : scene.images && scene.images.length > 1 ? (
+        <StillSequence images={scene.images} index={index} />
       ) : (
-        <Img
-          src={scene.image}
-          style={{ ...COVER, transform: `scale(${scale}) translate(${panX}%, ${panY}%)` }}
-        />
+        <MovingStill src={scene.image} zoomIn={index % 2 === 0} />
       )}
       {scene.flat ? null : (
         <>
