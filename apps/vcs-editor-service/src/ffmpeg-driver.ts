@@ -74,6 +74,52 @@ function hasAudio(file: string): Promise<boolean> {
 }
 
 /**
+ * Voice and music arrive at whatever level their engine made them, so both are brought to
+ * one loudness before the bed's levels apply: a level then always means the same distance
+ * under the voice.
+ */
+class Loudness {
+  private static readonly STEM = -16;
+  /** Quieter than this is silence, left alone rather than boosted. */
+  private static readonly SILENT = -60;
+  private static readonly MAX_GAIN = 20;
+
+  /** dB that brings the file's audio to STEM, 0 when it is silent. */
+  static async gain(file: string): Promise<number> {
+    const lufs = await Loudness.integrated(file);
+    if (lufs < Loudness.SILENT) return 0;
+    return Math.max(-Loudness.MAX_GAIN, Math.min(Loudness.MAX_GAIN, Loudness.STEM - lufs));
+  }
+
+  private static integrated(file: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-nostats",
+        "-i",
+        file,
+        "-vn",
+        "-af",
+        "ebur128=framelog=verbose",
+        "-f",
+        "null",
+        "-",
+      ];
+      const proc = spawn(FFMPEG, args, { stdio: ["ignore", "ignore", "pipe"] });
+      let err = "";
+      proc.stderr.on("data", (d) => {
+        err += d.toString();
+      });
+      proc.on("error", reject);
+      proc.on("close", (code) => {
+        const found = /Integrated loudness:\s+I:\s+(-?[\d.]+) LUFS/.exec(err);
+        if (code === 0 && found) return resolve(Number(found[1]));
+        reject(new Error(`loudness of ${file} failed (${code}): ${err.slice(-400)}`));
+      });
+    });
+  }
+}
+
+/**
  * The fast render lane, no headless Chromium: a straight ffmpeg trim + crop/scale for a
  * clip (the composition's own crop math, ClipGeometry, so it is pixel-parity with the
  * Remotion Player preview), and the whole story assembly including its captions. A clip
@@ -172,7 +218,7 @@ export class FfmpegDriver implements RenderDriver {
         joined,
         ...music,
         "-filter_complex",
-        props.music ? this.musicMix(props, gap) : `[0:a]${MASTER}[a]`,
+        props.music ? await this.musicMix(props, props.music, gap, joined) : `[0:a]${MASTER}[a]`,
         "-map",
         "0:v",
         "-map",
@@ -196,9 +242,15 @@ export class FfmpegDriver implements RenderDriver {
     }
   }
 
-  /** The music bed ducked under every scene that speaks and faded out at the end, mixed
-   *  with the scene audio at full level, then the whole mix levelled. */
-  private musicMix(props: StoryVideoProps, gap: number): string {
+  /** Voice and music brought to one loudness, the bed ducked under every scene that speaks
+   *  and faded out at the end, then the whole mix levelled. */
+  private async musicMix(
+    props: StoryVideoProps,
+    music: string,
+    gap: number,
+    joined: string,
+  ): Promise<string> {
+    const [voiceGain, musicGain] = await Promise.all([Loudness.gain(joined), Loudness.gain(music)]);
     const level = props.musicVolume ?? MusicBed.LEVEL;
     const under = props.musicUnderVoice ?? MusicBed.UNDER_VOICE;
     const curve = MusicBed.expression(
@@ -208,8 +260,9 @@ export class FfmpegDriver implements RenderDriver {
       under,
     );
     return (
-      `[1:a]volume='${curve}':eval=frame[m];` +
-      `[0:a][m]amix=inputs=2:duration=first:normalize=0:dropout_transition=0,${MASTER}[a]`
+      `[0:a]volume=${voiceGain.toFixed(2)}dB[v];` +
+      `[1:a]volume=${musicGain.toFixed(2)}dB,volume='${curve}':eval=frame[m];` +
+      `[v][m]amix=inputs=2:duration=first:normalize=0:dropout_transition=0,${MASTER}[a]`
     );
   }
 
