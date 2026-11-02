@@ -29,6 +29,9 @@ const MASTER = "loudnorm=I=-14:TP=-1.5:LRA=11";
 // instead of blurring; the upscaled frame is the whole canvas, so zoom 1 shows all of it.
 const KB_UPSCALE = 2;
 
+// A stills scene's pictures hand over with the composition's crossfade.
+const STILL_FADE_FRAMES = 12;
+
 const sceneDurationSec = (scene: StoryScene, gap: number): number =>
   (scene.seconds || 1) + Math.max(0, gap);
 
@@ -274,26 +277,28 @@ export class FfmpegDriver implements RenderDriver {
         audioLabel = "";
       }
     } else {
-      // Still: Ken Burns (alternating zoom-in / zoom-out + a gentle drift), matching the
-      // composition. Upscale first so the zoom samples real pixels instead of blurring.
-      if (!scene.image) throw new Error(`scene ${index + 1} has no image or clip to render`);
-      inputs.push("-loop", "1", "-i", scene.image);
-      const zoomIn = index % 2 === 0;
-      const z0 = zoomIn ? 1.05 : 1.14;
-      const z1 = zoomIn ? 1.14 : 1.05;
-      const pxs = zoomIn ? -1.8 : 1.8;
-      const pxe = zoomIn ? 1.8 : -1.8;
-      const pys = 1.2;
-      const pye = -1.2;
-      const d = Math.max(1, frames - 1);
-      // As the composition's scale() translate(): the view drifts against the pan.
-      const z = `${z0}+(${(z1 - z0).toFixed(5)})*on/${d}`;
-      const x = `(iw-iw/zoom)/2-((${pxs})+(${(pxe - pxs).toFixed(5)})*on/${d})/100*iw`;
-      const y = `(ih-ih/zoom)/2-((${pys})+(${(pye - pys).toFixed(5)})*on/${d})/100*ih`;
-      videoChain =
-        `[0:v]scale=${width * KB_UPSCALE}:${height * KB_UPSCALE}:force_original_aspect_ratio=increase,` +
-        `crop=${width * KB_UPSCALE}:${height * KB_UPSCALE},` +
-        `zoompan=z='${z}':x='${x}':y='${y}':d=${frames}:s=${width}x${height}:fps=${fps},${grade}[v]`;
+      // Stills: Ken Burns (alternating zoom-in / zoom-out + a gentle drift), matching the
+      // composition, one picture after another with a crossfade. Upscale first so the zoom
+      // samples real pixels instead of blurring.
+      const pictures = scene.images && scene.images.length > 1 ? scene.images : [scene.image];
+      if (!pictures[0]) throw new Error(`scene ${index + 1} has no image or clip to render`);
+      const n = pictures.length;
+      const fade = n > 1 ? Math.min(STILL_FADE_FRAMES, Math.floor(frames / n / 3)) : 0;
+      const each = Math.ceil((frames + (n - 1) * fade) / n);
+      const parts = pictures.map((picture, k) => {
+        inputs.push(...(n > 1 ? [] : ["-loop", "1"]), "-i", picture);
+        return `[${k}:v]${FfmpegDriver.kenBurns((index + k) % 2 === 0, each, width, height, fps)}[p${k}]`;
+      });
+      let last = "p0";
+      for (let k = 1; k < n; k++) {
+        const offset = ((k * (each - fade)) / fps).toFixed(4);
+        const out = `x${k}`;
+        parts.push(
+          `[${last}][p${k}]xfade=transition=fade:duration=${(fade / fps).toFixed(4)}:offset=${offset}[${out}]`,
+        );
+        last = out;
+      }
+      videoChain = `${parts.join(";")};[${last}]${grade}[v]`;
       audioLabel = "";
     }
 
@@ -303,11 +308,11 @@ export class FfmpegDriver implements RenderDriver {
     if (audioLabel) {
       audioChain = `[${audioLabel}]apad,atrim=0:${dur},asetpts=N/SR/TB[a]`;
     } else if (scene.audio) {
-      const ai = 1;
+      const ai = inputs.filter((arg) => arg === "-i").length;
       inputs.push("-i", scene.audio);
       audioChain = `[${ai}:a]apad,atrim=0:${dur},asetpts=N/SR/TB[a]`;
     } else {
-      const ai = 1;
+      const ai = inputs.filter((arg) => arg === "-i").length;
       inputs.push(
         "-f",
         "lavfi",
@@ -348,5 +353,31 @@ export class FfmpegDriver implements RenderDriver {
       "2",
       segPath,
     ]);
+  }
+
+  /** One still's Ken Burns move over `frames`, zooming in or out. */
+  private static kenBurns(
+    zoomIn: boolean,
+    frames: number,
+    width: number,
+    height: number,
+    fps: number,
+  ): string {
+    const z0 = zoomIn ? 1.05 : 1.14;
+    const z1 = zoomIn ? 1.14 : 1.05;
+    const pxs = zoomIn ? -1.8 : 1.8;
+    const pxe = zoomIn ? 1.8 : -1.8;
+    const pys = 1.2;
+    const pye = -1.2;
+    const d = Math.max(1, frames - 1);
+    // As the composition's scale() translate(): the view drifts against the pan.
+    const z = `${z0}+(${(z1 - z0).toFixed(5)})*on/${d}`;
+    const x = `(iw-iw/zoom)/2-((${pxs})+(${(pxe - pxs).toFixed(5)})*on/${d})/100*iw`;
+    const y = `(ih-ih/zoom)/2-((${pys})+(${(pye - pys).toFixed(5)})*on/${d})/100*ih`;
+    return (
+      `scale=${width * KB_UPSCALE}:${height * KB_UPSCALE}:force_original_aspect_ratio=increase,` +
+      `crop=${width * KB_UPSCALE}:${height * KB_UPSCALE},` +
+      `zoompan=z='${z}':x='${x}':y='${y}':d=${frames}:s=${width}x${height}:fps=${fps},setpts=PTS-STARTPTS`
+    );
   }
 }

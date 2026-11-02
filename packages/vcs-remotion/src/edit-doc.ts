@@ -39,6 +39,7 @@ const storyInput = z.object({
     .array(
       z.object({
         image: z.string(),
+        images: z.array(z.string()).optional(),
         video: z.string().optional(),
         video_seconds: z.number().optional(),
         video_audio: z.boolean().optional(),
