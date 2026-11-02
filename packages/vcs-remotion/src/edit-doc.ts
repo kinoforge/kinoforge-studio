@@ -59,7 +59,8 @@ const storyInput = z.object({
   captionPosition: z.enum(CAPTION_POSITIONS).optional(),
   sceneGap: z.number().optional(),
   music: z.string().optional(),
-  musicVolume: z.number().optional(),
+  musicVolume: z.number().min(0).max(1).optional(),
+  musicUnderVoice: z.number().min(0).max(1).optional(),
 });
 
 const explainerInput = z.object({

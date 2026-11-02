@@ -205,6 +205,8 @@ interface StoryBody {
   captionPosition?: string;
   sceneGap?: number;
   music?: string; // path relative to OUTPUT_DIR
+  musicVolume?: number; // the bed between lines, 0..1
+  musicUnderVoice?: number; // the bed while a scene speaks, 0..1
   out?: string; // output basename (e.g. "video-2.mp4"); backend versions renders
   out_dir?: string; // dir relative to OUTPUT_DIR (e.g. videogen/series/<sid>/episodes/3)
   uploadUrl?: string; // signed gateway PUT url; when set the service uploads its output itself
@@ -237,6 +239,8 @@ app.post("/render-story", async (req: Request, res: Response) => {
     captionPosition: CaptionPlacement.of(b.captionPosition),
     sceneGap: typeof b.sceneGap === "number" ? b.sceneGap : undefined,
     music: b.music ? mediaUrl(b.music) : undefined,
+    musicVolume: typeof b.musicVolume === "number" ? b.musicVolume : undefined,
+    musicUnderVoice: typeof b.musicUnderVoice === "number" ? b.musicUnderVoice : undefined,
     scenes: b.scenes.map((s) => ({
       image: s.image ? mediaUrl(s.image) : "",
       images: Array.isArray(s.images) ? s.images.map((i) => mediaUrl(i)) : undefined,

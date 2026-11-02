@@ -12,6 +12,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import type { CaptionWord } from "./captions.ts";
+import { MusicBed } from "./music-bed.ts";
 import {
   type CaptionPosition,
   CaptionLayout,
@@ -48,7 +49,10 @@ export type StoryVideoProps = {
   captionPosition?: CaptionPosition;
   sceneGap?: number;
   music?: string;
+  /** The bed's level between lines. */
   musicVolume?: number;
+  /** The bed's level while a scene speaks. */
+  musicUnderVoice?: number;
 };
 
 export const STORY_COMPOSITION_ID = "StoryVideo";
@@ -287,7 +291,8 @@ export function StoryVideo({
   captionPosition = "bottom",
   sceneGap = DEFAULT_SCENE_GAP,
   music,
-  musicVolume = 0.18,
+  musicVolume = MusicBed.LEVEL,
+  musicUnderVoice = MusicBed.UNDER_VOICE,
 }: StoryVideoProps) {
   let cursor = 0;
   return (
@@ -311,8 +316,43 @@ export function StoryVideo({
           </Sequence>
         );
       })}
-      {music ? <Audio src={music} volume={musicVolume} loop /> : null}
+      {music ? (
+        <MusicTrack
+          src={music}
+          scenes={scenes}
+          gap={sceneGap}
+          fps={fps}
+          level={musicVolume}
+          under={musicUnderVoice}
+        />
+      ) : null}
     </AbsoluteFill>
+  );
+}
+
+function MusicTrack({
+  src,
+  scenes,
+  gap,
+  fps,
+  level,
+  under,
+}: {
+  src: string;
+  scenes: StoryScene[];
+  gap: number;
+  fps: number;
+  level: number;
+  under: number;
+}) {
+  const spoken = useMemo(() => MusicBed.spoken(scenes, gap), [scenes, gap]);
+  const total = useMemo(() => MusicBed.length(scenes, gap), [scenes, gap]);
+  return (
+    <Audio
+      src={src}
+      loop
+      volume={(frame) => MusicBed.gain(frame / fps, spoken, total, level, under)}
+    />
   );
 }
 

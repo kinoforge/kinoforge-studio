@@ -8,6 +8,7 @@ import {
   ClipGeometry,
   type ClipProps,
   EditDocs,
+  MusicBed,
   STORY_COMPOSITION_ID,
   type StoryScene,
   type StoryVideoProps,
@@ -22,7 +23,8 @@ const evenFloor = (n: number) => Math.max(0, Math.floor(n / 2) * 2);
 // Mirror the Remotion story composition's timing + grade so the fast lane stays a
 // close visual match (not byte-identical — that is the parity contract's Remotion lane).
 const DEFAULT_SCENE_GAP = 0.5;
-const DEFAULT_MUSIC_VOLUME = 0.18;
+// The finished mix is levelled to the short-form loudness target, as the voice already is.
+const MASTER = "loudnorm=I=-14:TP=-1.5:LRA=11";
 // Upscale the still before zoompan so the Ken Burns move samples from extra pixels
 // instead of blurring; the upscaled frame is the whole canvas, so zoom 1 shows all of it.
 const KB_UPSCALE = 2;
@@ -155,60 +157,57 @@ export class FfmpegDriver implements RenderDriver {
         segments.push(seg);
       }
 
-      const joined = props.music ? path.join(work, "joined.mp4") : outputLocation;
+      const joined = path.join(work, "joined.mp4");
       const listFile = path.join(work, "concat.txt");
       fs.writeFileSync(listFile, segments.map((s) => `file '${s}'`).join("\n"));
+      await run(FFMPEG, ["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", joined]);
+
+      const music: string[] = props.music ? ["-stream_loop", "-1", "-i", props.music] : [];
       await run(FFMPEG, [
         "-y",
-        "-f",
-        "concat",
-        "-safe",
-        "0",
         "-i",
-        listFile,
-        "-c",
+        joined,
+        ...music,
+        "-filter_complex",
+        props.music ? this.musicMix(props, gap) : `[0:a]${MASTER}[a]`,
+        "-map",
+        "0:v",
+        "-map",
+        "[a]",
+        "-c:v",
         "copy",
+        "-c:a",
+        "aac",
+        "-ar",
+        "48000",
+        "-ac",
+        "2",
+        "-shortest",
         "-movflags",
         "+faststart+use_metadata_tags",
         ...tags,
-        joined,
+        outputLocation,
       ]);
-
-      if (props.music) {
-        const volume =
-          typeof props.musicVolume === "number" ? props.musicVolume : DEFAULT_MUSIC_VOLUME;
-        await run(FFMPEG, [
-          "-y",
-          "-i",
-          joined,
-          "-stream_loop",
-          "-1",
-          "-i",
-          props.music,
-          "-filter_complex",
-          `[1:a]volume=${volume}[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=0[a]`,
-          "-map",
-          "0:v",
-          "-map",
-          "[a]",
-          "-c:v",
-          "copy",
-          "-c:a",
-          "aac",
-          "-ar",
-          "48000",
-          "-ac",
-          "2",
-          "-shortest",
-          "-movflags",
-          "+faststart+use_metadata_tags",
-          ...tags,
-          outputLocation,
-        ]);
-      }
     } finally {
       fs.rmSync(work, { recursive: true, force: true });
     }
+  }
+
+  /** The music bed ducked under every scene that speaks and faded out at the end, mixed
+   *  with the scene audio at full level, then the whole mix levelled. */
+  private musicMix(props: StoryVideoProps, gap: number): string {
+    const level = props.musicVolume ?? MusicBed.LEVEL;
+    const under = props.musicUnderVoice ?? MusicBed.UNDER_VOICE;
+    const curve = MusicBed.expression(
+      MusicBed.spoken(props.scenes, gap),
+      MusicBed.length(props.scenes, gap),
+      level,
+      under,
+    );
+    return (
+      `[1:a]volume='${curve}':eval=frame[m];` +
+      `[0:a][m]amix=inputs=2:duration=first:normalize=0:dropout_transition=0,${MASTER}[a]`
+    );
   }
 
   /** The scene's burned captions as an ASS file in the work dir, or null when it has none. */
