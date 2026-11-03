@@ -11,6 +11,7 @@ import {
   EditDocs,
   ExplainerKit,
   STORY_COMPOSITION_ID,
+  type StoryVideoProps,
 } from "@vcs/remotion";
 import express, { type Request, type Response } from "express";
 import { CachingDriver } from "./caching-driver.ts";
@@ -18,23 +19,33 @@ import { type RenderJob, RenderTags } from "./driver.ts";
 import { FfmpegDriver } from "./ffmpeg-driver.ts";
 import { RemotionDriver } from "./remotion-driver.ts";
 import { SmartDriver } from "./smart-driver.ts";
+import { SegmentCache } from "./segment-cache.ts";
 import { RendererStamp } from "./stamp.ts";
 
 const PORT = Number(process.env.PORT || 3000);
 const OUTPUT_DIR = process.env.OUTPUT_DIR || "/app/output";
 const CACHE_DIR = process.env.RENDER_CACHE_DIR || path.join(OUTPUT_DIR, ".render-cache");
+const SEGMENT_DIR = process.env.SEGMENT_CACHE_DIR || path.join(OUTPUT_DIR, ".segment-cache");
+const SEGMENT_CACHE_MB = Number(process.env.SEGMENT_CACHE_MB || 6000);
+const RENDER_CACHE_MB = Number(process.env.RENDER_CACHE_MB || 2000);
+const STAMP = RendererStamp.of();
+const ffmpeg = new FfmpegDriver(
+  new SegmentCache(SEGMENT_DIR, SEGMENT_CACHE_MB * 1024 * 1024),
+  STAMP,
+);
 
 // Two engines behind the seam: ffmpeg (fast, plain cuts) and Remotion (rich,
 // composited). SmartDriver routes by capability; CachingDriver skips re-encodes.
 // Add a license-free rich driver by swapping RemotionDriver here.
 const driver = new CachingDriver(
   new SmartDriver(
-    new FfmpegDriver(),
+    ffmpeg,
     new RemotionDriver(),
     (doc) => FfmpegDriver.supports(doc) || FfmpegDriver.supportsStory(doc),
   ),
   CACHE_DIR,
-  RendererStamp.of(),
+  STAMP,
+  RENDER_CACHE_MB * 1024 * 1024,
 );
 
 const app = express();
@@ -212,24 +223,44 @@ interface StoryBody {
   uploadUrl?: string; // signed gateway PUT url; when set the service uploads its output itself
   metadata?: Record<string, string>; // tags written into the file (e.g. comment)
   endCard?: { image: string; seconds: number }; // a picture the film closes on
-  scenes: StoryScene[];
+  callbackUrl?: string; // answer at once and post the outcome here when the render ends
+  scenes: (StoryScene & { index?: number; key?: string })[];
 }
+
+/** A story request's problem, or "" when it can be rendered. */
+function storyProblem(b: StoryBody): string {
+  if (!safeSegment(b?.pid)) return "Invalid pid";
+  if (!Array.isArray(b.scenes) || b.scenes.length === 0) return "Missing scenes";
+  return "";
+}
+
+/** Posts a render's outcome to the caller, trying again a few times. */
+async function callBack(url: string, outcome: Record<string, unknown>): Promise<void> {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(outcome),
+      });
+      if (res.ok || (res.status >= 400 && res.status < 500)) return;
+    } catch (e) {
+      console.error("render callback failed:", e);
+    }
+    await new Promise((r) => setTimeout(r, 5000 * 2 ** attempt));
+  }
+}
+
+// Scenes rendered ahead run one story at a time, so they never crowd out a render.
+let prewarming: Promise<void> = Promise.resolve();
 
 // ---------------------------------------------------------------------------
 // AI video-gen assembly: still images (Ken Burns) + per-scene voiceover +
 // captions -> one mp4 at videogen/<pid>/video.mp4. Stateless like /render; the
 // Python worker tracks progress.
 // ---------------------------------------------------------------------------
-app.post("/render-story", async (req: Request, res: Response) => {
-  const b = req.body as StoryBody;
-  if (!safeSegment(b?.pid)) {
-    return res.status(400).json({ ok: false, error: "Invalid pid" });
-  }
-  if (!Array.isArray(b.scenes) || b.scenes.length === 0) {
-    return res.status(400).json({ ok: false, error: "Missing scenes" });
-  }
-
-  const inputProps = {
+function storyProps(b: StoryBody) {
+  return {
     fps: b.fps,
     width: b.width,
     height: b.height,
@@ -256,21 +287,54 @@ app.post("/render-story", async (req: Request, res: Response) => {
       audio: s.audio ? mediaUrl(s.audio) : undefined,
       seconds: s.seconds,
       words: s.words || [],
+      index: Number.isInteger(s.index) && s.index! >= 0 ? s.index : undefined,
+      key: typeof s.key === "string" && s.key ? s.key : undefined,
     })),
   };
+}
+
+app.post("/prewarm-story", (req: Request, res: Response) => {
+  const b = req.body as StoryBody;
+  const problem = storyProblem(b);
+  if (problem) return res.status(400).json({ ok: false, error: problem });
+  res.status(202).json({ ok: true });
+  const props = storyProps(b) as StoryVideoProps;
+  prewarming = prewarming
+    .then(() => ffmpeg.prewarm(props))
+    .catch((e) => console.error("Story prewarm failed:", e));
+});
+
+app.post("/render-story", async (req: Request, res: Response) => {
+  const b = req.body as StoryBody;
+  const problem = storyProblem(b);
+  if (problem) return res.status(400).json({ ok: false, error: problem });
+  const inputProps = storyProps(b);
 
   try {
     const outName = b.out && safeSegment(b.out) && b.out.endsWith(".mp4") ? b.out : "video.mp4";
     // The backend picks the folder (flat videogen/<pid>, or a nested series
     // episode); accept it only when it stays inside OUTPUT_DIR.
     const relDir = safeRelDir(b.out_dir) ? b.out_dir! : `videogen/${b.pid}`;
-    await renderTo(
-      { compositionId: STORY_COMPOSITION_ID, inputProps, metadata: RenderTags.of(b.metadata) },
-      path.join(OUTPUT_DIR, relDir),
-      outName,
-      b.uploadUrl,
-    );
-    res.json({ ok: true, file: `${relDir}/${outName}` });
+    const render = () =>
+      renderTo(
+        { compositionId: STORY_COMPOSITION_ID, inputProps, metadata: RenderTags.of(b.metadata) },
+        path.join(OUTPUT_DIR, relDir),
+        outName,
+        b.uploadUrl,
+      ).then(() => `${relDir}/${outName}`);
+    if (b.callbackUrl) {
+      const url = b.callbackUrl;
+      res.status(202).json({ ok: true, accepted: true });
+      render().then(
+        (file) => callBack(url, { ok: true, file }),
+        (e) => {
+          console.error("Story render failed:", e);
+          return callBack(url, { ok: false, error: String(e instanceof Error ? e.message : e) });
+        },
+      );
+      return;
+    }
+    res.json({ ok: true, file: await render() });
   } catch (e) {
     console.error("Story render failed:", e);
     res.status(500).json({ ok: false, error: String(e instanceof Error ? e.message : e) });

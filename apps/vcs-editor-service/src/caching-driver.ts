@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { STORY_COMPOSITION_ID } from "@vcs/remotion";
 import type { RenderDriver, RenderJob } from "./driver.ts";
+import { CacheTrim } from "./segment-cache.ts";
 
 /** Stable-stringify: object keys sorted so equal jobs hash equal regardless of key order. */
 function stableStringify(value: unknown): string {
@@ -37,11 +39,17 @@ export class CachingDriver implements RenderDriver {
     private readonly inner: RenderDriver,
     private readonly cacheDir: string,
     private readonly stamp: string,
+    private readonly maxBytes: number,
   ) {}
 
   async render(job: RenderJob, outputLocation: string): Promise<void> {
+    // A story's media arrive as signed urls that differ each time; its scenes are kept by
+    // their content instead (SegmentCache).
+    if (job.compositionId === STORY_COMPOSITION_ID) return this.inner.render(job, outputLocation);
     const cachePath = path.join(this.cacheDir, `${jobHash(job, this.stamp)}.mp4`);
     if (fs.existsSync(cachePath)) {
+      const now = new Date();
+      await fs.promises.utimes(cachePath, now, now).catch(() => undefined);
       await fs.promises.mkdir(path.dirname(outputLocation), { recursive: true });
       await fs.promises.copyFile(cachePath, outputLocation);
       return;
@@ -50,6 +58,7 @@ export class CachingDriver implements RenderDriver {
     try {
       await fs.promises.mkdir(this.cacheDir, { recursive: true });
       await fs.promises.copyFile(outputLocation, cachePath);
+      await CacheTrim.keep(this.cacheDir, this.maxBytes);
     } catch {
       // A cache write failure must never fail the render the caller already has.
     }

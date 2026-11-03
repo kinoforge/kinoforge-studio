@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   CLIP_COMPOSITION_ID,
   ClipGeometry,
@@ -16,6 +16,7 @@ import {
 } from "@vcs/remotion";
 import { AssCaptions } from "./ass-captions.ts";
 import { type RenderDriver, type RenderJob, RenderTags } from "./driver.ts";
+import type { SegmentCache } from "./segment-cache.ts";
 
 const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
 const FFPROBE = process.env.FFPROBE_PATH || "ffprobe";
@@ -32,6 +33,9 @@ const KB_UPSCALE = 2;
 
 // A stills scene's pictures hand over with the composition's crossfade.
 const STILL_FADE_FRAMES = 12;
+// The film look: darker edges, and a light grain on brightness only, as film has.
+const VIGNETTE = "vignette=PI/5";
+const GRAIN = "noise=c0s=7:c0f=t";
 // The end card comes up from black and goes back to it.
 const CARD_FADE_IN = 0.8;
 const CARD_FADE_OUT = 1;
@@ -165,6 +169,12 @@ class Loudness {
  * with burned captions or rich layers routes to Remotion, see SmartDriver.
  */
 export class FfmpegDriver implements RenderDriver {
+  /** `segments` keeps rendered scenes by their content; `stamp` names the code drawing them. */
+  constructor(
+    private readonly segments?: SegmentCache,
+    private readonly stamp = "",
+  ) {}
+
   /** True only for a plain Clip cut with no burned captions (parity-safe for ffmpeg). */
   static supports(job: RenderJob): boolean {
     if (job.compositionId !== CLIP_COMPOSITION_ID) return false;
@@ -239,10 +249,7 @@ export class FfmpegDriver implements RenderDriver {
     try {
       const segments: string[] = [];
       for (let i = 0; i < props.scenes.length; i++) {
-        const seg = path.join(work, `seg_${i}.mp4`);
-        const captions = this.captionFile(props, props.scenes[i], width, height, gap, work, i);
-        await this.renderScene(props.scenes[i], i, width, height, fps, gap, seg, captions);
-        segments.push(seg);
+        segments.push(await this.segment(props, props.scenes[i], i, work));
       }
       if (props.endCard) {
         const seg = path.join(work, "end_card.mp4");
@@ -285,6 +292,58 @@ export class FfmpegDriver implements RenderDriver {
     } finally {
       fs.rmSync(work, { recursive: true, force: true });
     }
+  }
+
+  /** Renders the story's scenes into the segment cache only, ahead of their assembly. */
+  async prewarm(props: StoryVideoProps): Promise<void> {
+    const work = fs.mkdtempSync(path.join(os.tmpdir(), "prewarm-"));
+    try {
+      for (let i = 0; i < props.scenes.length; i++) {
+        if (props.scenes[i].key) await this.segment(props, props.scenes[i], i, work);
+      }
+    } finally {
+      fs.rmSync(work, { recursive: true, force: true });
+    }
+  }
+
+  /** The scene's segment: kept from an earlier render of the same content, else made now. */
+  private segment(
+    props: StoryVideoProps,
+    scene: StoryScene,
+    position: number,
+    work: string,
+  ): Promise<string> {
+    const width = evenFloor(props.width);
+    const height = evenFloor(props.height);
+    const gap = typeof props.sceneGap === "number" ? props.sceneGap : DEFAULT_SCENE_GAP;
+    const index = scene.index ?? position;
+    const make = async (out: string) => {
+      const captions = this.captionFile(props, scene, width, height, gap, work, index);
+      await this.renderScene(scene, index, width, height, props.fps, gap, out, captions);
+    };
+    if (!this.segments || !scene.key) {
+      const out = path.join(work, `seg_${index}.mp4`);
+      return make(out).then(() => out);
+    }
+    const hash = createHash("sha256")
+      .update(
+        JSON.stringify([
+          this.stamp,
+          scene.key,
+          index,
+          width,
+          height,
+          props.fps,
+          gap,
+          props.showCaptions,
+          props.karaoke ?? false,
+          props.captionColor ?? "",
+          props.captionScale ?? 1,
+          props.captionPosition ?? "",
+        ]),
+      )
+      .digest("hex");
+    return this.segments.get(hash, make);
   }
 
   /** Voice and music brought to one loudness, the bed ducked under every scene that speaks
@@ -349,8 +408,11 @@ export class FfmpegDriver implements RenderDriver {
     const frames = Math.max(1, Math.round(dur * fps));
     // Captions go on after the grain and vignette so the text stays crisp, as in the preview.
     const subtitles = captions ? `,subtitles=filename='${captions}'` : "";
-    const look = scene.flat ? "" : "vignette=PI/5,noise=alls=8:allf=t,";
-    const grade = `${look}format=yuv420p${subtitles}`;
+    // A still has its vignette drawn once, into the picture, before it moves; a clip on
+    // every frame.
+    const grain = scene.flat ? "" : `,${GRAIN}`;
+    const grade = `${scene.flat ? "" : `${VIGNETTE},`}format=yuv420p${grain}${subtitles}`;
+    const still = `format=yuv420p${grain}${subtitles}`;
 
     const inputs: string[] = [];
     let videoChain: string;
@@ -381,7 +443,15 @@ export class FfmpegDriver implements RenderDriver {
       const each = Math.ceil((frames + (n - 1) * fade) / n);
       const parts = pictures.map((picture, k) => {
         inputs.push(...(n > 1 ? [] : ["-loop", "1"]), "-i", picture);
-        return `[${k}:v]${FfmpegDriver.kenBurns((index + k) % 2 === 0, each, width, height, fps)}[p${k}]`;
+        const move = FfmpegDriver.kenBurns(
+          (index + k) % 2 === 0,
+          each,
+          width,
+          height,
+          fps,
+          !scene.flat,
+        );
+        return `[${k}:v]${move}[p${k}]`;
       });
       let last = "p0";
       for (let k = 1; k < n; k++) {
@@ -392,7 +462,7 @@ export class FfmpegDriver implements RenderDriver {
         );
         last = out;
       }
-      videoChain = `${parts.join(";")};[${last}]${grade}[v]`;
+      videoChain = `${parts.join(";")};[${last}]${still}[v]`;
       audioLabel = "";
     }
 
@@ -497,6 +567,7 @@ export class FfmpegDriver implements RenderDriver {
     width: number,
     height: number,
     fps: number,
+    vignette: boolean,
   ): string {
     const z0 = zoomIn ? 1.05 : 1.14;
     const z1 = zoomIn ? 1.14 : 1.05;
@@ -511,7 +582,7 @@ export class FfmpegDriver implements RenderDriver {
     const y = `(ih-ih/zoom)/2-((${pys})+(${(pye - pys).toFixed(5)})*on/${d})/100*ih`;
     return (
       `scale=${width * KB_UPSCALE}:${height * KB_UPSCALE}:force_original_aspect_ratio=increase,` +
-      `crop=${width * KB_UPSCALE}:${height * KB_UPSCALE},` +
+      `crop=${width * KB_UPSCALE}:${height * KB_UPSCALE},${vignette ? `${VIGNETTE},` : ""}` +
       `zoompan=z='${z}':x='${x}':y='${y}':d=${frames}:s=${width}x${height}:fps=${fps},setpts=PTS-STARTPTS`
     );
   }

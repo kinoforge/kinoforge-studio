@@ -35,6 +35,10 @@ export type StoryScene = {
   audio?: string;
   seconds: number;
   words: CaptionWord[];
+  /** Its place in the story, when the scenes sent are not all of them. */
+  index?: number;
+  /** Names what the scene is made of: a scene with the same key renders the same. */
+  key?: string;
 };
 
 export type StoryVideoProps = {
