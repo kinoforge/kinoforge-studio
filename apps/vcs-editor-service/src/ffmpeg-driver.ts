@@ -8,6 +8,7 @@ import {
   ClipGeometry,
   type ClipProps,
   EditDocs,
+  type EndCard,
   MusicBed,
   STORY_COMPOSITION_ID,
   type StoryScene,
@@ -31,6 +32,9 @@ const KB_UPSCALE = 2;
 
 // A stills scene's pictures hand over with the composition's crossfade.
 const STILL_FADE_FRAMES = 12;
+// The end card comes up from black and goes back to it.
+const CARD_FADE_IN = 0.8;
+const CARD_FADE_OUT = 1;
 
 const sceneDurationSec = (scene: StoryScene, gap: number): number =>
   (scene.seconds || 1) + Math.max(0, gap);
@@ -240,22 +244,26 @@ export class FfmpegDriver implements RenderDriver {
         await this.renderScene(props.scenes[i], i, width, height, fps, gap, seg, captions);
         segments.push(seg);
       }
+      if (props.endCard) {
+        const seg = path.join(work, "end_card.mp4");
+        await this.renderEndCard(props.endCard, width, height, fps, seg);
+        segments.push(seg);
+      }
 
       const joined = path.join(work, "joined.mp4");
       const listFile = path.join(work, "concat.txt");
       fs.writeFileSync(listFile, segments.map((s) => `file '${s}'`).join("\n"));
       await run(FFMPEG, ["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", joined]);
 
-      const bed = props.music
-        ? await MusicLoop.bed(props.music, MusicBed.length(props.scenes, gap), work)
-        : null;
+      const length = MusicBed.length(props.scenes, gap) + (props.endCard?.seconds ?? 0);
+      const bed = props.music ? await MusicLoop.bed(props.music, length, work) : null;
       await run(FFMPEG, [
         "-y",
         "-i",
         joined,
         ...(bed ? ["-stream_loop", "-1", "-i", bed] : []),
         "-filter_complex",
-        bed ? await this.musicMix(props, bed, gap, joined) : `[0:a]${MASTER}[a]`,
+        bed ? await this.musicMix(props, bed, gap, length, joined) : `[0:a]${MASTER}[a]`,
         "-map",
         "0:v",
         "-map",
@@ -285,17 +293,13 @@ export class FfmpegDriver implements RenderDriver {
     props: StoryVideoProps,
     music: string,
     gap: number,
+    length: number,
     joined: string,
   ): Promise<string> {
     const [voiceGain, musicGain] = await Promise.all([Loudness.gain(joined), Loudness.gain(music)]);
     const level = props.musicVolume ?? MusicBed.LEVEL;
     const under = props.musicUnderVoice ?? MusicBed.UNDER_VOICE;
-    const curve = MusicBed.expression(
-      MusicBed.spoken(props.scenes, gap),
-      MusicBed.length(props.scenes, gap),
-      level,
-      under,
-    );
+    const curve = MusicBed.expression(MusicBed.spoken(props.scenes, gap), length, level, under);
     return (
       `[0:a]volume=${voiceGain.toFixed(2)}dB[v];` +
       `[1:a]volume=${musicGain.toFixed(2)}dB,volume='${curve}':eval=frame[m];` +
@@ -425,10 +429,52 @@ export class FfmpegDriver implements RenderDriver {
       "[v]",
       "-map",
       "[a]",
+      ...FfmpegDriver.segmentOutput(fps, dur),
+      segPath,
+    ]);
+  }
+
+  /** The closing card: the picture held still, up from black and back to it, silent. */
+  private async renderEndCard(
+    card: EndCard,
+    width: number,
+    height: number,
+    fps: number,
+    segPath: string,
+  ): Promise<void> {
+    const dur = card.seconds;
+    const out = Math.max(0, dur - CARD_FADE_OUT).toFixed(3);
+    await run(FFMPEG, [
+      "-y",
+      "-loop",
+      "1",
+      "-i",
+      card.image,
+      "-f",
+      "lavfi",
+      "-t",
+      String(dur),
+      "-i",
+      "anullsrc=channel_layout=stereo:sample_rate=48000",
+      "-filter_complex",
+      `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},` +
+        `format=yuv420p,fade=t=in:d=${CARD_FADE_IN},fade=t=out:st=${out}:d=${CARD_FADE_OUT}[v]`,
+      "-map",
+      "[v]",
+      "-map",
+      "1:a",
+      ...FfmpegDriver.segmentOutput(fps, dur),
+      segPath,
+    ]);
+  }
+
+  /** How every story segment is encoded, so they join without a re-encode. */
+  private static segmentOutput(fps: number, seconds: number): string[] {
+    return [
       "-r",
       String(fps),
       "-t",
-      String(dur),
+      String(seconds),
       "-c:v",
       "libx264",
       "-preset",
@@ -441,8 +487,7 @@ export class FfmpegDriver implements RenderDriver {
       "48000",
       "-ac",
       "2",
-      segPath,
-    ]);
+    ];
   }
 
   /** One still's Ken Burns move over `frames`, zooming in or out. */

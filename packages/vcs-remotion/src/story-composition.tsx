@@ -53,7 +53,11 @@ export type StoryVideoProps = {
   musicVolume?: number;
   /** The bed's level while a scene speaks. */
   musicUnderVoice?: number;
+  /** A picture the film closes on, after the last scene. */
+  endCard?: EndCard;
 };
+
+export type EndCard = { image: string; seconds: number };
 
 export const STORY_COMPOSITION_ID = "StoryVideo";
 

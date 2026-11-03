@@ -14,6 +14,7 @@ export {
   STORY_COMPOSITION_ID,
   type StoryScene,
   type StoryVideoProps,
+  type EndCard,
 } from "./story-composition.tsx";
 export {
   CaptionLayout,

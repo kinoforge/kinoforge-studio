@@ -211,6 +211,7 @@ interface StoryBody {
   out_dir?: string; // dir relative to OUTPUT_DIR (e.g. videogen/series/<sid>/episodes/3)
   uploadUrl?: string; // signed gateway PUT url; when set the service uploads its output itself
   metadata?: Record<string, string>; // tags written into the file (e.g. comment)
+  endCard?: { image: string; seconds: number }; // a picture the film closes on
   scenes: StoryScene[];
 }
 
@@ -241,6 +242,10 @@ app.post("/render-story", async (req: Request, res: Response) => {
     music: b.music ? mediaUrl(b.music) : undefined,
     musicVolume: typeof b.musicVolume === "number" ? b.musicVolume : undefined,
     musicUnderVoice: typeof b.musicUnderVoice === "number" ? b.musicUnderVoice : undefined,
+    endCard:
+      b.endCard?.image && b.endCard.seconds > 0
+        ? { image: mediaUrl(b.endCard.image), seconds: Math.min(b.endCard.seconds, 10) }
+        : undefined,
     scenes: b.scenes.map((s) => ({
       image: s.image ? mediaUrl(s.image) : "",
       images: Array.isArray(s.images) ? s.images.map((i) => mediaUrl(i)) : undefined,

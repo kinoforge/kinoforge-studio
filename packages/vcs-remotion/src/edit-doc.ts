@@ -62,6 +62,7 @@ const storyInput = z.object({
   music: z.string().optional(),
   musicVolume: z.number().min(0).max(1).optional(),
   musicUnderVoice: z.number().min(0).max(1).optional(),
+  endCard: z.object({ image: z.string(), seconds: z.number().positive() }).optional(),
 });
 
 const explainerInput = z.object({
