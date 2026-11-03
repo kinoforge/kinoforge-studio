@@ -30,6 +30,8 @@ const MASTER = "loudnorm=I=-14:TP=-1.5:LRA=11";
 // Upscale the still before zoompan so the Ken Burns move samples from extra pixels
 // instead of blurring; the upscaled frame is the whole canvas, so zoom 1 shows all of it.
 const KB_UPSCALE = 2;
+// How far a held last frame closes in over the rest of its scene.
+const HOLD_ZOOM = 0.06;
 
 // A stills scene's pictures hand over with the composition's crossfade.
 const STILL_FADE_FRAMES = 12;
@@ -321,7 +323,7 @@ export class FfmpegDriver implements RenderDriver {
       const captions = this.captionFile(props, scene, width, height, gap, work, index);
       await this.renderScene(scene, index, width, height, props.fps, gap, out, captions);
     };
-    if (!this.segments || !scene.key) {
+    if (!this.segments || !scene.key || props.reuseScenes === false) {
       const out = path.join(work, `seg_${index}.mp4`);
       return make(out).then(() => out);
     }
@@ -417,21 +419,30 @@ export class FfmpegDriver implements RenderDriver {
     const inputs: string[] = [];
     let videoChain: string;
     let audioLabel: string; // the [n:a] the audio chain reads from
-    let loopClip = false;
+    let last = "";
 
     if (scene.video) {
       inputs.push("-i", scene.video);
-      // A clip meant to speak for itself but made silent (a fallback model) plays muted.
-      if (scene.video_audio && (await hasAudio(scene.video))) {
-        // Native-audio clip: play once, clone the last frame to fill the scene, keep its sound.
-        videoChain = `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},tpad=stop_mode=clone:stop_duration=${dur},${grade}[v]`;
-        audioLabel = "0:a";
+      const fit = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1`;
+      const clip = await FfmpegDriver.seconds(scene.video);
+      const holdFrames = frames - Math.round(clip * fps);
+      if (clip > 0 && holdFrames > 1) {
+        // A clip shorter than its scene plays once, then its last frame holds and slowly
+        // closes in for the rest, so nothing restarts or freezes.
+        last = `${segPath}.last.png`;
+        await FfmpegDriver.lastFrame(scene.video, last);
+        inputs.push("-i", last);
+        const vignette = scene.flat ? "" : `${VIGNETTE},`;
+        videoChain =
+          `[0:v]${fit},fps=${fps},trim=duration=${clip.toFixed(3)},setpts=PTS-STARTPTS,${vignette}format=yuv420p[c];` +
+          `[1:v]${FfmpegDriver.hold(holdFrames, width, height, fps)},${vignette}format=yuv420p[h];` +
+          `[c][h]concat=n=2:v=1:a=0,${still}[v]`;
       } else {
-        // Voiceover clip: loop it muted to fill the scene; the voiceover is a separate track.
-        loopClip = true;
-        videoChain = `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},${grade}[v]`;
-        audioLabel = "";
+        videoChain = `[0:v]${fit},${grade}[v]`;
       }
+      // A clip meant to speak for itself but made silent (a fallback model) plays muted, under
+      // the voiceover when there is one.
+      audioLabel = scene.video_audio && (await hasAudio(scene.video)) ? "0:a" : "";
     } else {
       // Stills: Ken Burns (alternating zoom-in / zoom-out + a gentle drift), matching the
       // composition, one picture after another with a crossfade. Upscale first so the zoom
@@ -488,20 +499,22 @@ export class FfmpegDriver implements RenderDriver {
       audioChain = `[${ai}:a]atrim=0:${dur},asetpts=N/SR/TB[a]`;
     }
 
-    const pre: string[] = ["-y"];
-    if (loopClip) pre.push("-stream_loop", "-1");
-    await run(FFMPEG, [
-      ...pre,
-      ...inputs,
-      "-filter_complex",
-      `${videoChain};${audioChain}`,
-      "-map",
-      "[v]",
-      "-map",
-      "[a]",
-      ...FfmpegDriver.segmentOutput(fps, dur),
-      segPath,
-    ]);
+    try {
+      await run(FFMPEG, [
+        "-y",
+        ...inputs,
+        "-filter_complex",
+        `${videoChain};${audioChain}`,
+        "-map",
+        "[v]",
+        "-map",
+        "[a]",
+        ...FfmpegDriver.segmentOutput(fps, dur),
+        segPath,
+      ]);
+    } finally {
+      if (last) fs.rmSync(last, { force: true });
+    }
   }
 
   /** The closing card: the picture held still, up from black and back to it, silent. */
@@ -561,6 +574,28 @@ export class FfmpegDriver implements RenderDriver {
   }
 
   /** One still's Ken Burns move over `frames`, zooming in or out. */
+  /** A held frame that closes in slowly from exactly as it was, centred. */
+  private static hold(frames: number, width: number, height: number, fps: number): string {
+    const d = Math.max(1, frames - 1);
+    return (
+      `scale=${width * KB_UPSCALE}:${height * KB_UPSCALE}:force_original_aspect_ratio=increase,` +
+      `crop=${width * KB_UPSCALE}:${height * KB_UPSCALE},` +
+      `zoompan=z='1+${HOLD_ZOOM}*on/${d}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=${frames}:s=${width}x${height}:fps=${fps},setpts=PTS-STARTPTS`
+    );
+  }
+
+  /** How long the clip runs; 0 when ffprobe cannot tell. */
+  private static async seconds(file: string): Promise<number> {
+    const raw = await probe(file, ["-show_entries", "format=duration"]).catch(() => "");
+    const n = Number.parseFloat(raw);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  /** The clip's last frame as a picture. */
+  private static async lastFrame(file: string, out: string): Promise<void> {
+    await run(FFMPEG, ["-y", "-sseof", "-1", "-i", file, "-update", "1", "-an", out]);
+  }
+
   private static kenBurns(
     zoomIn: boolean,
     frames: number,

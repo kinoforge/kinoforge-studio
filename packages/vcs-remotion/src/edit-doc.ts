@@ -61,6 +61,7 @@ const storyInput = z.object({
   captionScale: z.number().optional(),
   captionPosition: z.enum(CAPTION_POSITIONS).optional(),
   sceneGap: z.number().optional(),
+  reuseScenes: z.boolean().optional(),
   music: z.string().optional(),
   musicVolume: z.number().min(0).max(1).optional(),
   musicUnderVoice: z.number().min(0).max(1).optional(),

@@ -52,6 +52,8 @@ export type StoryVideoProps = {
   captionScale?: number;
   captionPosition?: CaptionPosition;
   sceneGap?: number;
+  /** False renders every scene again instead of reusing ones rendered before. */
+  reuseScenes?: boolean;
   music?: string;
   /** The bed's level between lines. */
   musicVolume?: number;

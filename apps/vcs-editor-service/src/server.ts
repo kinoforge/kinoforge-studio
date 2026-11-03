@@ -215,6 +215,7 @@ interface StoryBody {
   captionScale?: number;
   captionPosition?: string;
   sceneGap?: number;
+  reuseScenes?: boolean;
   music?: string; // path relative to OUTPUT_DIR
   musicVolume?: number; // the bed between lines, 0..1
   musicUnderVoice?: number; // the bed while a scene speaks, 0..1
@@ -274,6 +275,7 @@ function storyProps(b: StoryBody) {
     captionScale: b.captionScale || undefined,
     captionPosition: CaptionPlacement.of(b.captionPosition),
     sceneGap: typeof b.sceneGap === "number" ? b.sceneGap : undefined,
+    reuseScenes: b.reuseScenes !== false,
     music: b.music ? mediaUrl(b.music) : undefined,
     musicVolume: typeof b.musicVolume === "number" ? b.musicVolume : undefined,
     musicUnderVoice: typeof b.musicUnderVoice === "number" ? b.musicUnderVoice : undefined,
