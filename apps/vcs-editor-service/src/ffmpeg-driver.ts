@@ -50,10 +50,14 @@ function run(cmd: string, args: string[]): Promise<void> {
 }
 
 /** Whether the file has an audio stream: a clip from a model that makes no sound has none. */
-function hasAudio(file: string): Promise<boolean> {
+async function hasAudio(file: string): Promise<boolean> {
+  return (await probe(file, ["-select_streams", "a", "-show_entries", "stream=index"])) !== "";
+}
+
+/** ffprobe's answer for the file, trimmed. */
+function probe(file: string, entries: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const args = ["-v", "error", "-select_streams", "a", "-show_entries", "stream=index"];
-    const proc = spawn(FFPROBE, [...args, "-of", "csv=p=0", file], {
+    const proc = spawn(FFPROBE, ["-v", "error", ...entries, "-of", "csv=p=0", file], {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let out = "";
@@ -67,10 +71,41 @@ function hasAudio(file: string): Promise<boolean> {
     proc.on("error", reject);
     proc.on("close", (code) =>
       code === 0
-        ? resolve(out.trim() !== "")
+        ? resolve(out.trim())
         : reject(new Error(`ffprobe exited ${code}: ${err.slice(-400)}`)),
     );
   });
+}
+
+/** A track shorter than the film repeats; its end crossfades into its start so no join is heard. */
+class MusicLoop {
+  private static readonly FADE = 2;
+
+  /** The track itself when the film fits in it, else a wav made to repeat without a seam. */
+  static async bed(music: string, length: number, work: string): Promise<string> {
+    const seconds = Number(await probe(music, ["-show_entries", "format=duration"]));
+    const fade = MusicLoop.FADE;
+    if (!(seconds < length) || seconds < fade * 3) return music;
+    const out = path.join(work, "bed.wav");
+    await run(FFMPEG, [
+      "-y",
+      "-i",
+      music,
+      "-filter_complex",
+      `[0:a]asplit=2[a][b];[a]atrim=start=${fade},asetpts=PTS-STARTPTS[body];` +
+        `[b]atrim=end=${fade},asetpts=PTS-STARTPTS[head];[body][head]acrossfade=d=${fade}[m]`,
+      "-map",
+      "[m]",
+      "-c:a",
+      "pcm_s16le",
+      "-ar",
+      "48000",
+      "-ac",
+      "2",
+      out,
+    ]);
+    return out;
+  }
 }
 
 /**
@@ -211,14 +246,16 @@ export class FfmpegDriver implements RenderDriver {
       fs.writeFileSync(listFile, segments.map((s) => `file '${s}'`).join("\n"));
       await run(FFMPEG, ["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", joined]);
 
-      const music: string[] = props.music ? ["-stream_loop", "-1", "-i", props.music] : [];
+      const bed = props.music
+        ? await MusicLoop.bed(props.music, MusicBed.length(props.scenes, gap), work)
+        : null;
       await run(FFMPEG, [
         "-y",
         "-i",
         joined,
-        ...music,
+        ...(bed ? ["-stream_loop", "-1", "-i", bed] : []),
         "-filter_complex",
-        props.music ? await this.musicMix(props, props.music, gap, joined) : `[0:a]${MASTER}[a]`,
+        bed ? await this.musicMix(props, bed, gap, joined) : `[0:a]${MASTER}[a]`,
         "-map",
         "0:v",
         "-map",
