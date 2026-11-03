@@ -224,6 +224,7 @@ interface StoryBody {
   metadata?: Record<string, string>; // tags written into the file (e.g. comment)
   endCard?: { image: string; seconds: number }; // a picture the film closes on
   callbackUrl?: string; // answer at once and post the outcome here when the render ends
+  renderId?: string; // the caller's name for the render, to ask whether it still runs
   scenes: (StoryScene & { index?: number; key?: string })[];
 }
 
@@ -253,6 +254,9 @@ async function callBack(url: string, outcome: Record<string, unknown>): Promise<
 
 // Scenes rendered ahead run one story at a time, so they never crowd out a render.
 let prewarming: Promise<void> = Promise.resolve();
+// Renders handed over with a callback, until their outcome is posted. After a restart it is
+// empty, so the caller learns a render it waits on was lost.
+const rendering = new Set<string>();
 
 // ---------------------------------------------------------------------------
 // AI video-gen assembly: still images (Ken Burns) + per-scene voiceover +
@@ -293,6 +297,11 @@ function storyProps(b: StoryBody) {
   };
 }
 
+app.get("/renders/:id", (req: Request, res: Response) => {
+  const running = rendering.has(String(req.params.id));
+  res.status(running ? 200 : 404).json({ running });
+});
+
 app.post("/prewarm-story", (req: Request, res: Response) => {
   const b = req.body as StoryBody;
   const problem = storyProblem(b);
@@ -324,14 +333,18 @@ app.post("/render-story", async (req: Request, res: Response) => {
       ).then(() => `${relDir}/${outName}`);
     if (b.callbackUrl) {
       const url = b.callbackUrl;
+      const id = typeof b.renderId === "string" ? b.renderId : "";
+      if (id) rendering.add(id);
       res.status(202).json({ ok: true, accepted: true });
-      render().then(
-        (file) => callBack(url, { ok: true, file }),
-        (e) => {
-          console.error("Story render failed:", e);
-          return callBack(url, { ok: false, error: String(e instanceof Error ? e.message : e) });
-        },
-      );
+      render()
+        .then(
+          (file) => callBack(url, { ok: true, file }),
+          (e) => {
+            console.error("Story render failed:", e);
+            return callBack(url, { ok: false, error: String(e instanceof Error ? e.message : e) });
+          },
+        )
+        .finally(() => rendering.delete(id));
       return;
     }
     res.json({ ok: true, file: await render() });
