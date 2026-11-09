@@ -26,4 +26,4 @@ export {
 export * from "./explainer/index.ts";
 export { RemotionRoot } from "./root.tsx";
 export { EditDocs, type EditDoc } from "./edit-doc.ts";
-export { MusicBed, type Spoken } from "./music-bed.ts";
+export { MusicBed, ScenePause, type Spoken } from "./music-bed.ts";

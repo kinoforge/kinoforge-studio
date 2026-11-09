@@ -12,7 +12,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import type { CaptionWord } from "./captions.ts";
-import { MusicBed } from "./music-bed.ts";
+import { MusicBed, ScenePause } from "./music-bed.ts";
 import {
   type CaptionPosition,
   CaptionLayout,
@@ -35,6 +35,8 @@ export type StoryScene = {
   audio?: string;
   seconds: number;
   words: CaptionWord[];
+  /** The next scene goes on from this clip's last frame, so no pause follows it. */
+  joined?: boolean;
   /** Its place in the story, when the scenes sent are not all of them. */
   index?: number;
   /** Names what the scene is made of: a scene with the same key renders the same. */
@@ -87,14 +89,14 @@ export const DEFAULT_STORY_PROPS: StoryVideoProps = {
 };
 
 class StoryTimeline {
-  static sceneFrames(seconds: number, gap: number, fps: number): number {
-    return Math.max(1, Math.round(((seconds || 1) + Math.max(0, gap)) * fps));
+  static sceneFrames(scene: StoryScene, gap: number, fps: number): number {
+    return Math.max(1, Math.round(((scene.seconds || 1) + ScenePause.after(scene, gap)) * fps));
   }
 
   static totalFrames(props: StoryVideoProps): number {
     const gap = props.sceneGap ?? DEFAULT_SCENE_GAP;
     return (props.scenes || []).reduce(
-      (sum, scene) => sum + StoryTimeline.sceneFrames(scene.seconds, gap, props.fps),
+      (sum, scene) => sum + StoryTimeline.sceneFrames(scene, gap, props.fps),
       0,
     );
   }
@@ -308,7 +310,7 @@ export function StoryVideo({
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
       {scenes.map((scene, index) => {
-        const frames = StoryTimeline.sceneFrames(scene.seconds, sceneGap, fps);
+        const frames = StoryTimeline.sceneFrames(scene, sceneGap, fps);
         const from = cursor;
         cursor += frames;
         return (

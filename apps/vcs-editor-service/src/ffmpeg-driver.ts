@@ -10,6 +10,7 @@ import {
   EditDocs,
   type EndCard,
   MusicBed,
+  ScenePause,
   STORY_COMPOSITION_ID,
   type StoryScene,
   type StoryVideoProps,
@@ -43,7 +44,7 @@ const CARD_FADE_IN = 0.8;
 const CARD_FADE_OUT = 1;
 
 const sceneDurationSec = (scene: StoryScene, gap: number): number =>
-  (scene.seconds || 1) + Math.max(0, gap);
+  (scene.seconds || 1) + ScenePause.after(scene, gap);
 
 function run(cmd: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {

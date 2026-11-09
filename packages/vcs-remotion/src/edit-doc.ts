@@ -47,6 +47,7 @@ const storyInput = z.object({
         audio: z.string().optional(),
         seconds: z.number().positive(),
         words: z.array(captionWord),
+        joined: z.boolean().optional(),
         index: z.number().int().min(0).optional(),
         key: z.string().optional(),
       }),

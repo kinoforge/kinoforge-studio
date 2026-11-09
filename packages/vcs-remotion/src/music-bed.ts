@@ -1,5 +1,12 @@
 /** A scene as the music bed sees it: how long it runs and whether it has sound of its own. */
-type BedScene = { seconds: number; audio?: string; video_audio?: boolean };
+type BedScene = { seconds: number; audio?: string; video_audio?: boolean; joined?: boolean };
+
+export class ScenePause {
+  /** The pause after a scene: none when the next scene goes on from where its clip ends. */
+  static after(scene: { joined?: boolean }, gap: number): number {
+    return scene.joined ? 0 : Math.max(0, gap);
+  }
+}
 
 /** A span of the film, in seconds, where a scene speaks (its voice or its clip's sound). */
 export type Spoken = readonly [start: number, end: number];
@@ -23,13 +30,13 @@ export class MusicBed {
     for (const scene of scenes) {
       const seconds = scene.seconds || 1;
       if (scene.audio || scene.video_audio) out.push([at, at + seconds]);
-      at += seconds + Math.max(0, gap);
+      at += seconds + ScenePause.after(scene, gap);
     }
     return out;
   }
 
   static length(scenes: BedScene[], gap: number): number {
-    return scenes.reduce((sum, s) => sum + (s.seconds || 1) + Math.max(0, gap), 0);
+    return scenes.reduce((sum, s) => sum + (s.seconds || 1) + ScenePause.after(s, gap), 0);
   }
 
   /** The bed's volume at `t` seconds. */
