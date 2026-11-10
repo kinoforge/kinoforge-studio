@@ -130,11 +130,20 @@ class Loudness {
   private static readonly SILENT = -60;
   private static readonly MAX_GAIN = 20;
 
+  /** A quiet clip (wind, a room) is lifted at most this much, so it stays under a line. */
+  private static readonly MAX_CLIP_BOOST = 6;
+
   /** dB that brings the file's audio to STEM, 0 when it is silent. */
   static async gain(file: string): Promise<number> {
     const lufs = await Loudness.integrated(file);
     if (lufs < Loudness.SILENT) return 0;
     return Math.max(-Loudness.MAX_GAIN, Math.min(Loudness.MAX_GAIN, Loudness.STEM - lufs));
+  }
+
+  /** dB for one clip's own sound: video models make each clip at its own level (one 18 dB
+   *  louder than the next), so a loud clip comes down to STEM and a quiet one rises a little. */
+  static async clip(file: string): Promise<number> {
+    return Math.min(Loudness.MAX_CLIP_BOOST, await Loudness.gain(file));
   }
 
   private static integrated(file: string): Promise<number> {
@@ -420,6 +429,7 @@ export class FfmpegDriver implements RenderDriver {
     const inputs: string[] = [];
     let videoChain: string;
     let audioLabel: string; // the [n:a] the audio chain reads from
+    let clipLevel = 0; // dB on a clip's own sound
     let last = "";
 
     if (scene.video) {
@@ -444,6 +454,7 @@ export class FfmpegDriver implements RenderDriver {
       // A clip meant to speak for itself but made silent (a fallback model) plays muted, under
       // the voiceover when there is one.
       audioLabel = scene.video_audio && (await hasAudio(scene.video)) ? "0:a" : "";
+      if (audioLabel) clipLevel = await Loudness.clip(scene.video);
     } else {
       // Stills: Ken Burns (alternating zoom-in / zoom-out + a gentle drift), matching the
       // composition, one picture after another with a crossfade. Upscale first so the zoom
@@ -482,7 +493,7 @@ export class FfmpegDriver implements RenderDriver {
     // scene voiceover, or silence for an image/looped-clip scene with none.
     let audioChain: string;
     if (audioLabel) {
-      audioChain = `[${audioLabel}]apad,atrim=0:${dur},asetpts=N/SR/TB[a]`;
+      audioChain = `[${audioLabel}]volume=${clipLevel.toFixed(2)}dB,apad,atrim=0:${dur},asetpts=N/SR/TB[a]`;
     } else if (scene.audio) {
       const ai = inputs.filter((arg) => arg === "-i").length;
       inputs.push("-i", scene.audio);
