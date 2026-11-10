@@ -25,7 +25,7 @@ services:
     # Headless Chromium needs more than Docker's 64 MB /dev/shm or renders crash.
     shm_size: 1gb
     cpus: ${EDITOR_CPUS:-2}
-    mem_limit: ${EDITOR_MEMORY:-3g}
+    mem_limit: ${EDITOR_MEMORY:-4g}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
       interval: 30s

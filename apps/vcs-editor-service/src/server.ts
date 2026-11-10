@@ -1,5 +1,7 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
+import http from "node:http";
+import https from "node:https";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -116,18 +118,37 @@ async function renderTo(
   const tmp = path.join(os.tmpdir(), `render-${randomUUID()}.mp4`);
   try {
     await driver.render(job, tmp);
-    const data = await fs.promises.readFile(tmp);
-    const resp = await fetch(uploadUrl, {
-      method: "PUT",
-      body: data,
-      headers: { "Content-Type": "video/mp4" },
-    });
-    if (!resp.ok) {
-      throw new Error(`assets upload ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
-    }
+    await putFile(uploadUrl, tmp);
   } finally {
     await fs.promises.unlink(tmp).catch(() => {});
   }
+}
+
+/** Streams a file to a signed PUT url, so a long film never sits in memory whole. */
+async function putFile(url: string, file: string): Promise<void> {
+  const { size } = await fs.promises.stat(file);
+  const target = new URL(url);
+  const send = target.protocol === "https:" ? https.request : http.request;
+  await new Promise<void>((resolve, reject) => {
+    const req = send(
+      target,
+      { method: "PUT", headers: { "Content-Type": "video/mp4", "Content-Length": size } },
+      (res) => {
+        let text = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk: string) => {
+          if (text.length < 200) text += chunk;
+        });
+        res.on("end", () => {
+          const status = res.statusCode ?? 0;
+          if (status >= 200 && status < 300) resolve();
+          else reject(new Error(`assets upload ${status}: ${text.slice(0, 200)}`));
+        });
+      },
+    );
+    req.on("error", reject);
+    fs.createReadStream(file).on("error", reject).pipe(req);
+  });
 }
 
 app.get("/health", (_req: Request, res: Response) => {
@@ -255,9 +276,62 @@ async function callBack(url: string, outcome: Record<string, unknown>): Promise<
 
 // Scenes rendered ahead run one story at a time, so they never crowd out a render.
 let prewarming: Promise<void> = Promise.resolve();
-// Renders handed over with a callback, until their outcome is posted. After a restart it is
-// empty, so the caller learns a render it waits on was lost.
-const rendering = new Set<string>();
+
+/** Story renders handed over with a callback. Each stays on disk until its outcome is
+ * posted, so a restart (a deploy, a crash) picks it up again; one cut short too often fails. */
+class StoryRenders {
+  static readonly DIR = path.join(OUTPUT_DIR, ".renders");
+  static readonly MAX_STARTS = 3;
+  static readonly running = new Set<string>();
+
+  static start(id: string, b: StoryBody, starts = 1): void {
+    const file = path.join(StoryRenders.DIR, `${id}.json`);
+    fs.mkdirSync(StoryRenders.DIR, { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ body: b, starts }));
+    StoryRenders.running.add(id);
+    const url = b.callbackUrl!;
+    renderStory(b)
+      .then(
+        (out) => callBack(url, { ok: true, file: out }),
+        (e) => {
+          console.error("Story render failed:", e);
+          return callBack(url, { ok: false, error: String(e instanceof Error ? e.message : e) });
+        },
+      )
+      .finally(() => {
+        StoryRenders.running.delete(id);
+        fs.rmSync(file, { force: true });
+      });
+  }
+
+  static resume(): void {
+    let names: string[] = [];
+    try {
+      names = fs.readdirSync(StoryRenders.DIR).filter((n) => n.endsWith(".json"));
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const file = path.join(StoryRenders.DIR, name);
+      try {
+        const { body, starts } = JSON.parse(fs.readFileSync(file, "utf8"));
+        if (starts >= StoryRenders.MAX_STARTS) {
+          fs.rmSync(file, { force: true });
+          void callBack(body.callbackUrl, {
+            ok: false,
+            error: `the render was cut short ${starts} times`,
+          });
+          continue;
+        }
+        console.log(`resuming story render ${name} (start ${starts + 1})`);
+        StoryRenders.start(name.slice(0, -5), body, starts + 1);
+      } catch (e) {
+        console.error("Story render resume failed:", e);
+        fs.rmSync(file, { force: true });
+      }
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // AI video-gen assembly: still images (Ken Burns) + per-scene voiceover +
@@ -300,9 +374,27 @@ function storyProps(b: StoryBody) {
 }
 
 app.get("/renders/:id", (req: Request, res: Response) => {
-  const running = rendering.has(String(req.params.id));
+  const running = StoryRenders.running.has(String(req.params.id));
   res.status(running ? 200 : 404).json({ running });
 });
+
+/** Renders a story film; answers where it went. */
+function renderStory(b: StoryBody): Promise<string> {
+  const outName = b.out && safeSegment(b.out) && b.out.endsWith(".mp4") ? b.out : "video.mp4";
+  // The backend picks the folder (flat videogen/<pid>, or a nested series
+  // episode); accept it only when it stays inside OUTPUT_DIR.
+  const relDir = safeRelDir(b.out_dir) ? b.out_dir! : `videogen/${b.pid}`;
+  return renderTo(
+    {
+      compositionId: STORY_COMPOSITION_ID,
+      inputProps: storyProps(b),
+      metadata: RenderTags.of(b.metadata),
+    },
+    path.join(OUTPUT_DIR, relDir),
+    outName,
+    b.uploadUrl,
+  ).then(() => `${relDir}/${outName}`);
+}
 
 app.post("/prewarm-story", (req: Request, res: Response) => {
   const b = req.body as StoryBody;
@@ -319,37 +411,14 @@ app.post("/render-story", async (req: Request, res: Response) => {
   const b = req.body as StoryBody;
   const problem = storyProblem(b);
   if (problem) return res.status(400).json({ ok: false, error: problem });
-  const inputProps = storyProps(b);
-
   try {
-    const outName = b.out && safeSegment(b.out) && b.out.endsWith(".mp4") ? b.out : "video.mp4";
-    // The backend picks the folder (flat videogen/<pid>, or a nested series
-    // episode); accept it only when it stays inside OUTPUT_DIR.
-    const relDir = safeRelDir(b.out_dir) ? b.out_dir! : `videogen/${b.pid}`;
-    const render = () =>
-      renderTo(
-        { compositionId: STORY_COMPOSITION_ID, inputProps, metadata: RenderTags.of(b.metadata) },
-        path.join(OUTPUT_DIR, relDir),
-        outName,
-        b.uploadUrl,
-      ).then(() => `${relDir}/${outName}`);
     if (b.callbackUrl) {
-      const url = b.callbackUrl;
-      const id = typeof b.renderId === "string" ? b.renderId : "";
-      if (id) rendering.add(id);
+      const id = typeof b.renderId === "string" && safeSegment(b.renderId) ? b.renderId : "";
+      StoryRenders.start(id || randomUUID(), b);
       res.status(202).json({ ok: true, accepted: true });
-      render()
-        .then(
-          (file) => callBack(url, { ok: true, file }),
-          (e) => {
-            console.error("Story render failed:", e);
-            return callBack(url, { ok: false, error: String(e instanceof Error ? e.message : e) });
-          },
-        )
-        .finally(() => rendering.delete(id));
       return;
     }
-    res.json({ ok: true, file: await render() });
+    res.json({ ok: true, file: await renderStory(b) });
   } catch (e) {
     console.error("Story render failed:", e);
     res.status(500).json({ ok: false, error: String(e instanceof Error ? e.message : e) });
@@ -428,6 +497,7 @@ app.post("/v1/render", async (req: Request, res: Response) => {
   }
 });
 
+StoryRenders.resume();
 app.listen(PORT, () => {
   console.log(`vcs-editor-service listening on :${PORT} (output=${OUTPUT_DIR})`);
 });
