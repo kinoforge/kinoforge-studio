@@ -51,6 +51,17 @@ const driver = new CachingDriver(
 );
 
 const app = express();
+app.disable("x-powered-by");
+// HTTPS only, no type guessing, no full URL in the referrer, framed only by itself.
+app.use((_req, res, next) => {
+  res.set({
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "SAMEORIGIN",
+  });
+  next();
+});
 app.use(express.json({ limit: "20mb" }));
 app.use(requireToken(process.env.EDITOR_SERVICE_TOKEN || ""));
 
