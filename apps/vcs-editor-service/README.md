@@ -106,8 +106,8 @@ renders leave room for anything else on the box.
 The build context is the repo root, because it installs workspace dependencies.
 
 ```sh
-docker build -f apps/vcs-editor-service/Dockerfile -t videogpt-studio .
-docker run -p 3000:3000 -v "$PWD/output:/app/output" videogpt-studio
+docker build -f apps/vcs-editor-service/Dockerfile -t kinoforge-studio .
+docker run -p 3000:3000 -v "$PWD/output:/app/output" kinoforge-studio
 ```
 
 ## Licensing
