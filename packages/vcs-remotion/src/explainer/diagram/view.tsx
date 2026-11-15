@@ -390,7 +390,7 @@ export function DiagramView({
     const size = trip.label ? tagBox(trip.label, tripSize, tripPad, true) : null;
     const reach = dot * 2.4;
     const side = size ? places.trip(routes.get(key) ?? route, size.w, size.h, reach) : 1;
-    const tag = size ? LabelPlaces.around(route, s, side, size.w, size.h, reach) : null;
+    const tag = size ? places.ride(route, s, side, size.w, size.h, reach) : null;
     return [{ i, at: route.at(s), fade, label: trip.label, tag }];
   });
 

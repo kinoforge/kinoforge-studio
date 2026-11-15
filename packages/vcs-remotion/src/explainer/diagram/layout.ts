@@ -20,19 +20,38 @@ const NODES: Record<"tall" | "wide", NodeSpec> = {
   tall: { aspect: 1.3, maxShare: 0.26, mainFill: 0.62, crossFill: 0.82 },
 };
 
-/** Where every node of a diagram stands, worked out from its arrows: layers along the long
- *  side of the area (sources first), the nodes of a layer spread across it in the order their
- *  sources hold. A diagram without arrows is a grid. The writer never places anything. */
+export interface DiagramPlacing {
+  boxes: Map<string, Box>;
+  wide: boolean;
+}
+
+/** Where every node of a diagram stands, worked out from its arrows: layers along one side of
+ *  the area (sources first), the nodes of a layer spread across it in the order their sources
+ *  hold. A diagram without arrows is a grid. The writer never places anything. */
 export class DiagramLayout {
-  static of(order: readonly string[], links: readonly DiagramLink[], area: Box): Map<string, Box> {
-    const boxes = new Map<string, Box>();
-    if (!order.length) return boxes;
-    const wide = DiagramLayout.wide(area);
-    const spec = NODES[wide ? "wide" : "tall"];
+  static readonly SWITCH = 1.08;
+
+  static of(order: readonly string[], links: readonly DiagramLink[], area: Box): DiagramPlacing {
+    const natural = DiagramLayout.wide(area);
+    if (!order.length) return { boxes: new Map(), wide: natural };
     const inside = links.filter((l) => order.includes(l.from) && order.includes(l.to));
-    const layers = inside.length
-      ? DiagramLayout.layers(order, inside)
-      : DiagramLayout.grid(order, area, spec.aspect);
+    if (!inside.length) {
+      const grid = DiagramLayout.grid(order, area, NODES[natural ? "wide" : "tall"].aspect);
+      return DiagramLayout.place(grid, area, natural).placing;
+    }
+    const layers = DiagramLayout.layers(order, inside);
+    const own = DiagramLayout.place(layers, area, natural);
+    const turned = DiagramLayout.place(layers, area, !natural);
+    return turned.size > own.size * DiagramLayout.SWITCH ? turned.placing : own.placing;
+  }
+
+  private static place(
+    layers: readonly string[][],
+    area: Box,
+    wide: boolean,
+  ): { placing: DiagramPlacing; size: number } {
+    const boxes = new Map<string, Box>();
+    const spec = NODES[wide ? "wide" : "tall"];
     const mainLen = wide ? area.w : area.h;
     const crossLen = wide ? area.h : area.w;
     const cellMain = mainLen / layers.length;
@@ -51,7 +70,7 @@ export class DiagramLayout {
         boxes.set(id, { x: cx - w / 2, y: cy - h / 2, w, h });
       });
     });
-    return boxes;
+    return { placing: { boxes, wide }, size: h };
   }
 
   /** Longest-path layers; a node in a loop keeps the layer its first sources give it. */

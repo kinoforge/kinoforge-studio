@@ -97,20 +97,30 @@ function Backdrop({ palette, width }: { palette: BoardPalette; width: number }) 
 
 /** Where a card stands mid-move: entering from below, settling, or leaving upward. */
 class CardMotion {
-  static place(before: Box | undefined, after: Box | undefined, p: number) {
+  static readonly HANDOVER = 0.6;
+
+  static place(before: Box | undefined, after: Box | undefined, p: number, handover = false) {
     if (after && before) {
       return { box: CardMotion.lerp(before, after, p), opacity: 1, scale: 1 };
     }
     if (after) {
       const rise = Ease.pop(p, 1);
+      const shown = handover
+        ? Ease.clamp((p - CardMotion.HANDOVER) / (1 - CardMotion.HANDOVER))
+        : Ease.clamp(p * 2);
       return {
         box: { ...after, y: after.y + (1 - Ease.clamp(rise)) * after.h * 0.35 },
-        opacity: Ease.clamp(p * 2),
+        opacity: shown,
         scale: 0.86 + 0.14 * rise,
       };
     }
     const gone = before as Box;
-    return { box: { ...gone, y: gone.y - gone.h * 0.4 * p }, opacity: 1 - p, scale: 1 - 0.08 * p };
+    const left = handover ? Ease.clamp(p / CardMotion.HANDOVER) : p;
+    return {
+      box: { ...gone, y: gone.y - gone.h * 0.4 * p },
+      opacity: 1 - left,
+      scale: 1 - 0.08 * p,
+    };
   }
 
   private static lerp(a: Box, b: Box, p: number): Box {
@@ -284,8 +294,14 @@ function BoardScene({
   }
   const stampPiece = stamp >= 0 && StampBadge.shows(t - starts[stamp]) ? beats[stamp].piece : null;
   const stampCard = stamp >= 0 ? BoardStack.visible(beats, stamp, capacity).at(-1) : undefined;
+  const handover = ids.some((id) => !now.includes(id));
   const cardBox = (id: number) =>
-    CardMotion.place(id === current ? undefined : beforeBoxes.get(id), nowBoxes.get(id), p);
+    CardMotion.place(
+      id === current ? undefined : beforeBoxes.get(id),
+      nowBoxes.get(id),
+      p,
+      handover,
+    );
   const stampAnchor =
     stampCard != null && ids.includes(stampCard)
       ? cardBox(stampCard).box

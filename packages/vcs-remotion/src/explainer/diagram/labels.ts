@@ -11,6 +11,7 @@ export class LabelPlaces {
   static readonly SHARES = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8];
   static readonly COVER = 0.45;
   static readonly SAMPLES = [0.15, 0.35, 0.5, 0.65, 0.85];
+  static readonly STEPS = Array.from({ length: 21 }, (_, i) => i / 20);
   private readonly taken: Box[] = [];
 
   constructor(
@@ -43,6 +44,29 @@ export class LabelPlaces {
       ),
     );
     return sides[LabelPlaces.cheapest(costs)];
+  }
+
+  ride(route: Route, s: number, side: -1 | 1, w: number, h: number, reach: number): Box {
+    for (const far of [reach, reach + h * 1.5]) {
+      const free = LabelPlaces.STEPS.filter(
+        (share) => this.cost(LabelPlaces.around(route, share, side, w, h, far)) < 1,
+      );
+      if (free.length) {
+        const at = Math.min(Math.max(s, free[0]), free[free.length - 1]);
+        return LabelPlaces.around(route, at, side, w, h, far);
+      }
+    }
+    const costs = LabelPlaces.STEPS.map((share) =>
+      this.cost(LabelPlaces.around(route, share, side, w, h, reach)),
+    );
+    return LabelPlaces.around(
+      route,
+      LabelPlaces.STEPS[LabelPlaces.cheapest(costs)],
+      side,
+      w,
+      h,
+      reach,
+    );
   }
 
   box(route: Route, spot: LabelSpot, w: number, h: number): Box {

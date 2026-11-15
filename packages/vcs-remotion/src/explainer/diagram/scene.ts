@@ -28,9 +28,10 @@ export class DiagramScene {
     if (!DiagramMemory.isDiagram(board)) return null;
     const script = new DiagramScript(DiagramMemory.before(history), board.beats, starts, seconds);
     const { band, area } = SurfaceSplit.of(board, content);
+    const now = DiagramLayout.of(script.order, script.arrows, area);
     const last = history.at(-1);
     let from: Map<string, Box> | null = null;
-    let fromWide = DiagramLayout.wide(area);
+    let fromWide = now.wide;
     if (last && DiagramMemory.isDiagram(last)) {
       const before = new DiagramScript(
         DiagramMemory.before(history.slice(0, -1)),
@@ -38,19 +39,15 @@ export class DiagramScene {
         last.beats.map(() => 0),
         1,
       );
-      const earlier = SurfaceSplit.of(last, content).area;
-      from = DiagramLayout.of(before.order, before.arrows, earlier);
-      fromWide = DiagramLayout.wide(earlier);
+      const earlier = DiagramLayout.of(
+        before.order,
+        before.arrows,
+        SurfaceSplit.of(last, content).area,
+      );
+      from = earlier.boxes;
+      fromWide = earlier.wide;
     }
-    return {
-      script,
-      boxes: DiagramLayout.of(script.order, script.arrows, area),
-      from,
-      wide: DiagramLayout.wide(area),
-      fromWide,
-      band,
-      area,
-    };
+    return { script, boxes: now.boxes, from, wide: now.wide, fromWide, band, area };
   }
 
   static stage(stage: Stage | null | undefined): Map<string, StageNode> {
