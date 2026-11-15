@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { icon, slug, text } from "../fields.ts";
+import { icon, slug, stageRef, text } from "../fields.ts";
 
 export const MARK_TONES = ["focus", "good", "bad", "warn"] as const;
 export type MarkTone = (typeof MARK_TONES)[number];
@@ -11,7 +11,7 @@ export const MARK_COLORS: Record<MarkTone, "accent2" | "good" | "bad" | "warn"> 
   warn: "warn",
 };
 
-const nodeId = slug.describe("an id from STAGE");
+const nodeId = stageRef("nodes", "an id from STAGE");
 const link = z.object({ from: nodeId, to: nodeId, label: text(16).optional() });
 
 export const showPiece = z.object({

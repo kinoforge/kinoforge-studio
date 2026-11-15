@@ -67,6 +67,7 @@ export function CounterView({ piece, w, h, t, span, palette }: PieceProps<"count
           color: palette.cardInk,
           textAlign: "center",
           opacity: Ease.out(t, 0.4, 0.3),
+          ...FitText.clamp(2),
         }}
       >
         {piece.label}
@@ -160,7 +161,9 @@ export function ProgressView({ piece, w, h, t, span, palette }: PieceProps<"prog
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <span style={{ fontSize: size, fontWeight: 800, color: palette.cardInk }}>
+        <span
+          style={{ fontSize: size, fontWeight: 800, color: palette.cardInk, ...FitText.line() }}
+        >
           {piece.label}
         </span>
         <span style={{ fontSize: size * 1.4, fontWeight: 900, color: palette.accent }}>
@@ -191,14 +194,10 @@ export function ProgressView({ piece, w, h, t, span, palette }: PieceProps<"prog
 export function CompareView({ piece, w, h, t, span, palette }: PieceProps<"compare">) {
   const half = w * 0.43;
   const inner = half * 0.82;
-  const longest = [...piece.left.items, ...piece.right.items].reduce(
-    (a, b) => (b.length > a.length ? b : a),
-    "",
-  );
+  const longest = FitText.widest([...piece.left.items, ...piece.right.items]);
   const rows = Math.max(piece.left.items.length, piece.right.items.length);
   const size = FitText.size(longest, { w: inner, h: (h * 0.6) / rows }, Math.round(h * 0.11), 2);
-  const titles =
-    piece.left.title.length > piece.right.title.length ? piece.left.title : piece.right.title;
+  const titles = FitText.widest([piece.left.title, piece.right.title]);
   const head = Math.min(
     Math.round(size * 1.4),
     FitText.size(titles, { w: inner, h: h * 0.18 }, Math.round(h * 0.15), 1),
@@ -230,6 +229,7 @@ export function CompareView({ piece, w, h, t, span, palette }: PieceProps<"compa
             fontWeight: 900,
             color: which === "left" ? palette.accent : palette.accent2,
             marginBottom: head * 0.4,
+            ...FitText.line(),
           }}
         >
           {sideData.title}
@@ -244,6 +244,7 @@ export function CompareView({ piece, w, h, t, span, palette }: PieceProps<"compa
               lineHeight: 1.2,
               marginBottom: size * 0.35,
               opacity: Ease.out(t, 0.3, delay + 0.25 + i * 0.2),
+              ...FitText.clamp(2),
             }}
           >
             {item}
@@ -320,7 +321,7 @@ export function TerminalView({ piece, w, h, t, span, palette }: PieceProps<"term
     { w: w * 0.86, h: ((h - bar) / rows) * 0.8 },
     Math.round(((h - bar) / rows) * 0.5),
     1,
-    FitText.MONO,
+    "mono",
   );
   const total = piece.lines.reduce((sum, line) => sum + line.length, 0);
   const rate = Math.max(28, total / Math.max(0.8, span * 0.75));

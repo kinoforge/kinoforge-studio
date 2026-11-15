@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { slug, text } from "../fields.ts";
+import { slug, stageRef, text } from "../fields.ts";
 import { MARK_TONES } from "../diagram/spec.ts";
 
 export const MAP_REGIONS = [
@@ -16,7 +16,7 @@ export type MapRegion = (typeof MAP_REGIONS)[number];
 export const ROUTE_MODES = ["plane", "ship", "car", "line"] as const;
 export type RouteMode = (typeof ROUTE_MODES)[number];
 
-const placeId = slug.describe("a place id from STAGE");
+const placeId = stageRef("places", "a place id from STAGE");
 const country = z
   .string()
   .trim()

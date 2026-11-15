@@ -10,12 +10,15 @@ import {
   CaptionPlacement,
   type Caption,
   type CaptionWord,
+  BoardFit,
   EditDocs,
   ExplainerKit,
   STORY_COMPOSITION_ID,
   type StoryVideoProps,
+  fitRequestSchema,
 } from "@vcs/remotion";
 import express, { type Request, type Response } from "express";
+import { renderToStaticMarkup } from "react-dom/server";
 import { CachingDriver } from "./caching-driver.ts";
 import { type RenderJob, RenderTags } from "./driver.ts";
 import { FfmpegDriver } from "./ffmpeg-driver.ts";
@@ -170,6 +173,19 @@ app.get("/health", (_req: Request, res: Response) => {
 const EXPLAINER_KIT = ExplainerKit.describe();
 app.get("/v1/kits/explainer", (_req: Request, res: Response) => {
   res.json(EXPLAINER_KIT);
+});
+
+app.post("/v1/kits/explainer/fit", (req: Request, res: Response) => {
+  const parsed = fitRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ ok: false, error: parsed.error.message.slice(0, 500) });
+  }
+  try {
+    res.json({ ok: true, problems: BoardFit.check(parsed.data, renderToStaticMarkup) });
+  } catch (e) {
+    console.error("Board fit failed:", e);
+    res.status(500).json({ ok: false, error: String(e instanceof Error ? e.message : e) });
+  }
 });
 
 interface CaptionBody {

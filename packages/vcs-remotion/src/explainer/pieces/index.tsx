@@ -5,9 +5,9 @@ import { LineView, NumberLineView, PieView } from "./charts.tsx";
 import { BarsView, CompareView, CounterView, ProgressView, TerminalView } from "./data.tsx";
 import { IconsView, ListView, StepsView, TimelineView } from "./lists.tsx";
 import { BrowserView, ChatView } from "./screens.tsx";
-import { FormulaView, NoteView, QuoteView, StampView, TitleView } from "./words.tsx";
+import { FormulaView, NoteView, QuoteView, StampBadge, StampView, TitleView } from "./words.tsx";
 
-export { StampView };
+export { StampBadge, StampView };
 
 export function PieceView({
   piece,

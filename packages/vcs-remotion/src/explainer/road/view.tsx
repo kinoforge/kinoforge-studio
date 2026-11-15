@@ -665,7 +665,7 @@ function Tag({
   color: string;
   toward: number;
 }) {
-  const w = text.length * size * FitText.SANS * 0.95 + size * 1.1;
+  const w = FitText.width(text, size) + size * 1.1;
   const h = size * 1.6;
   const x = toward < 0 ? at.x - w : toward > 0 ? at.x : at.x - w / 2;
   return (

@@ -216,7 +216,7 @@ export const PIECE_KINDS = {
   stamp: kind(
     stamp,
     0,
-    "A rubber stamp slammed over the board: a verdict.",
+    "A short verdict badge pinned on the newest card for a moment.",
     { type: "stamp", text: "MYTH", tone: "bad" },
     "overlay",
   ),

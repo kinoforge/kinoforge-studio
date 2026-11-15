@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { STAGE_REF } from "./fields.ts";
 import { BOARD_ICON_GROUPS, BOARD_ICONS, BOARD_ICON_KEYS } from "./icons/index.ts";
 import { MASCOTS } from "./mascot.tsx";
 import { EXPLAINER_COMPOSITION_ID } from "./composition.tsx";
@@ -105,7 +106,7 @@ class Signature {
  *  writer model reads, and the registry of named assets a board or a picker may use. All of
  *  it is derived from spec.ts, icons/ and the mascot rigs, so they never drift apart. */
 export class ExplainerKit {
-  static readonly VERSION = 9;
+  static readonly VERSION = 10;
 
   static schema(): Record<string, unknown> {
     return ExplainerKit.json(boardSchema);
@@ -119,7 +120,7 @@ export class ExplainerKit {
     const board = [
       `BOARD: {"mood": ${MOODS.join("|")}, "beats": ${beats.minItems} to ${beats.maxItems} of {"cue": text, "piece": PIECE, "clear"?: true|false}}`,
       "cue: words of the narration, copied exactly, where the piece appears. Beats go in narration order.",
-      "clear: true wipes the cards shown before it. stamp is laid over the board, not stacked.",
+      "clear: true wipes the cards shown before it. stamp is a small badge on the newest card, not stacked.",
       "PIECES:",
       ...ExplainerKit.pieces("card", "overlay"),
     ].join("\n");
@@ -205,7 +206,11 @@ export class ExplainerKit {
       reserves: CAPTION_RESERVES,
       schema: ExplainerKit.schema(),
       catalog: ExplainerKit.catalog(),
-      stage: { schema: ExplainerKit.json(stageSchema), catalog: ExplainerKit.stageCatalog() },
+      stage: {
+        schema: ExplainerKit.json(stageSchema),
+        catalog: ExplainerKit.stageCatalog(),
+        ref: STAGE_REF,
+      },
       assets: ExplainerKit.assets(),
     };
   }

@@ -71,7 +71,7 @@ class BadgeRow {
   static of(lit: Lit, chars: readonly number[], size: number, gutter: number, width: number) {
     const first = lit.lines[0];
     const last = lit.lines.at(-1) as number;
-    const label = (lit.label ?? "").length * FitText.SANS * 0.72 + 1;
+    const label = FitText.width(lit.label ?? "", 0.72) + 1;
     const free = (row: number) => row >= 0 && row < chars.length && !lit.lines.includes(row);
     const rows = [first, first - 1, last + 1].filter((row) => row === first || free(row));
     const fits = (row: number) =>

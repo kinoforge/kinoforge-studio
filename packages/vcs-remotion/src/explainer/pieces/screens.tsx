@@ -206,6 +206,7 @@ export function BrowserView({ piece, w, h, t, span, palette }: PieceProps<"brows
             color: "#14161B",
             lineHeight: 1.15,
             opacity: show(0),
+            ...FitText.clamp(2),
           }}
         >
           {piece.heading}

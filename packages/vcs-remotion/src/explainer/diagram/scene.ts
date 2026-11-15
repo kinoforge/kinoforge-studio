@@ -10,6 +10,8 @@ export interface DiagramPlan {
   boxes: Map<string, Box>;
   /** Where the previous scene left its nodes, when it showed the diagram too. */
   from: Map<string, Box> | null;
+  wide: boolean;
+  fromWide: boolean;
   band: Box;
 }
 
@@ -27,6 +29,7 @@ export class DiagramScene {
     const { band, area } = SurfaceSplit.of(board, content);
     const last = history.at(-1);
     let from: Map<string, Box> | null = null;
+    let fromWide = DiagramLayout.wide(area);
     if (last && DiagramMemory.isDiagram(last)) {
       const before = new DiagramScript(
         DiagramMemory.before(history.slice(0, -1)),
@@ -34,9 +37,18 @@ export class DiagramScene {
         last.beats.map(() => 0),
         1,
       );
-      from = DiagramLayout.of(before.order, before.arrows, SurfaceSplit.of(last, content).area);
+      const earlier = SurfaceSplit.of(last, content).area;
+      from = DiagramLayout.of(before.order, before.arrows, earlier);
+      fromWide = DiagramLayout.wide(earlier);
     }
-    return { script, boxes: DiagramLayout.of(script.order, script.arrows, area), from, band };
+    return {
+      script,
+      boxes: DiagramLayout.of(script.order, script.arrows, area),
+      from,
+      wide: DiagramLayout.wide(area),
+      fromWide,
+      band,
+    };
   }
 
   static stage(stage: Stage | null | undefined): Map<string, StageNode> {

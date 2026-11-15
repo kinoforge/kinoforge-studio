@@ -117,7 +117,7 @@ function Pill({
   ink: string;
   anchor: "left" | "middle";
 }) {
-  const w = text.length * size * FitText.SANS * 0.95 + size * 1.1;
+  const w = FitText.width(text, size) + size * 1.1;
   const h = size * 1.6;
   const x = anchor === "left" ? at.x : at.x - w / 2;
   return (

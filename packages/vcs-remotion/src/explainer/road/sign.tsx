@@ -201,6 +201,7 @@ export function SignView({ piece, w, h, t, palette }: PieceProps<"sign">) {
             lineHeight: 1.2,
             color: palette.cardInk,
             opacity: Ease.out(t, 0.4, 0.25),
+            ...FitText.clamp(3),
           }}
         >
           {piece.label}

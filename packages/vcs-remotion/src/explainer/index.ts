@@ -35,6 +35,7 @@ export {
   type TrafficSide,
 } from "./road/spec.ts";
 export { CarPose, RoadMemory, RoadRules, RoadScript } from "./road/state.ts";
+export { BoardFit, type FitRequest, fitRequestSchema } from "./fit.tsx";
 export { ExplainerKit, KIT_ASSET_KINDS, type KitAsset, type KitAssetKind } from "./kit.ts";
 export { MASCOTS, MascotFigure, type MascotPose } from "./mascot.tsx";
 export {

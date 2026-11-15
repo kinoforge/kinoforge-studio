@@ -1,4 +1,5 @@
-import { BOARD_FONT, BOARD_MONO } from "../theme.ts";
+import type { PieceOf } from "../spec.ts";
+import { BOARD_FONT, BOARD_MONO, type BoardPalette } from "../theme.ts";
 import { FitText } from "../timeline.ts";
 import { Ease, type PieceProps } from "./ease.ts";
 
@@ -25,7 +26,15 @@ export function TitleView({ piece, w, h, t, palette }: PieceProps<"title">) {
           {piece.kicker}
         </div>
       ) : null}
-      <div style={{ fontSize: size, fontWeight: 900, lineHeight: 1.08, color: palette.cardInk }}>
+      <div
+        style={{
+          fontSize: size,
+          fontWeight: 900,
+          lineHeight: 1.08,
+          color: palette.cardInk,
+          ...FitText.clamp(2),
+        }}
+      >
         {words.map((word, i) => {
           const p = Ease.out(t, 0.35, 0.08 * i);
           return (
@@ -52,7 +61,15 @@ export function NoteView({ piece, w, h, t, palette }: PieceProps<"note">) {
   const sweep = Ease.out(t, 0.7, 0.25);
   return (
     <div style={{ display: "flex", alignItems: "center", height: "100%" }}>
-      <div style={{ fontSize: size, fontWeight: 700, lineHeight: 1.22, color: palette.cardInk }}>
+      <div
+        style={{
+          fontSize: size,
+          fontWeight: 700,
+          lineHeight: 1.22,
+          color: palette.cardInk,
+          ...FitText.clamp(4),
+        }}
+      >
         <span
           style={{
             backgroundImage: `linear-gradient(${palette.accent}55, ${palette.accent}55)`,
@@ -107,6 +124,7 @@ export function QuoteView({ piece, w, h, t, palette }: PieceProps<"quote">) {
           lineHeight: 1.25,
           color: palette.cardInk,
           opacity: Ease.out(t, 0.5, 0.1),
+          ...FitText.clamp(3),
         }}
       >
         {piece.text}
@@ -131,7 +149,7 @@ export function QuoteView({ piece, w, h, t, palette }: PieceProps<"quote">) {
 const OPERATOR = /[=+\-×*/÷<>≈^()∝≤≥≠]/;
 
 export function FormulaView({ piece, w, h, t, span, palette }: PieceProps<"formula">) {
-  const size = FitText.size(piece.text, { w, h: h * 0.8 }, Math.round(h * 0.42), 2, FitText.MONO);
+  const size = FitText.size(piece.text, { w, h: h * 0.8 }, Math.round(h * 0.42), 2, "mono");
   const chars = Array.from(piece.text);
   const shown = Math.ceil(chars.length * Ease.clamp(t / Math.min(1.4, span * 0.6)));
   return (
@@ -148,7 +166,14 @@ export function FormulaView({ piece, w, h, t, span, palette }: PieceProps<"formu
       }}
     >
       {/* Every character is laid out from the start, so the line never reflows as it types. */}
-      <div style={{ whiteSpace: "pre-wrap", textAlign: "center", lineHeight: 1.2 }}>
+      <div
+        style={{
+          whiteSpace: "pre-wrap",
+          textAlign: "center",
+          lineHeight: 1.2,
+          ...FitText.clamp(2),
+        }}
+      >
         {chars.map((char, i) => (
           <span
             key={i}
@@ -167,27 +192,56 @@ export function FormulaView({ piece, w, h, t, span, palette }: PieceProps<"formu
 
 const TONES = { good: "good", bad: "bad", warn: "warn" } as const;
 
-/** Slammed over the board, not stacked: a verdict on what is showing. */
-export function StampView({ piece, w, t, palette }: Omit<PieceProps<"stamp">, "h" | "span">) {
+export class StampBadge {
+  static readonly HOLD = 1.8;
+  static readonly FADE = 0.35;
+  static readonly SHARE = 0.036;
+  static readonly REACH = 0.62;
+
+  static shows(t: number): boolean {
+    return t >= 0 && t < StampBadge.HOLD + StampBadge.FADE;
+  }
+
+  static size(text: string, frame: number, room: number): number {
+    const word = text.toUpperCase();
+    const per = FitText.width(word, 1) + Array.from(word).length * 0.06 + 1.2;
+    return Math.max(
+      FitText.SMALLEST,
+      Math.min(frame * StampBadge.SHARE, (room * StampBadge.REACH) / per),
+    );
+  }
+}
+
+export function StampView({
+  piece,
+  size,
+  t,
+  palette,
+}: {
+  piece: PieceOf<"stamp">;
+  size: number;
+  t: number;
+  palette: BoardPalette;
+}) {
   const color = palette[TONES[piece.tone]];
-  const size = Math.round(Math.min(w * 0.13, (w * 1.2) / Math.max(4, piece.text.length)));
-  const slam = Ease.out(t, 0.22);
-  const shake = t < 0.4 ? Math.sin(t * 90) * (0.4 - t) * 6 : 0;
+  const pop = Ease.pop(t, 0.35);
+  const fade = Ease.out(t - StampBadge.HOLD, StampBadge.FADE);
   return (
     <div
       style={{
         fontFamily: BOARD_FONT,
         fontSize: size,
         fontWeight: 900,
-        letterSpacing: size * 0.08,
+        letterSpacing: size * 0.06,
         textTransform: "uppercase",
         color,
-        border: `${Math.max(4, size * 0.09)}px solid ${color}`,
-        borderRadius: size * 0.18,
-        padding: `${size * 0.12}px ${size * 0.35}px`,
-        transform: `rotate(-12deg) scale(${2.2 - 1.2 * slam}) translateX(${shake}px)`,
-        opacity: Math.min(1, slam * 1.4) * 0.92,
-        mixBlendMode: palette.light ? "multiply" : "normal",
+        background: palette.card,
+        border: `${Math.max(3, size * 0.12)}px solid ${color}`,
+        borderRadius: size * 0.3,
+        padding: `${size * 0.16}px ${size * 0.42}px`,
+        boxShadow: `0 ${size * 0.15}px ${size * 0.5}px ${palette.shadow}`,
+        transform: `rotate(-6deg) scale(${Math.max(0, pop)})`,
+        opacity: 1 - fade,
         whiteSpace: "nowrap",
       }}
     >

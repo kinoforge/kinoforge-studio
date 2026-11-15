@@ -9,3 +9,8 @@ export const slug = z
   .trim()
   .regex(/^[a-z0-9][a-z0-9-]*$/)
   .max(24);
+
+export const STAGE_REF = "x-stage";
+export const STAGE_REF_PARTS = ["nodes", "files", "places"] as const;
+export const stageRef = (part: (typeof STAGE_REF_PARTS)[number], about: string) =>
+  slug.describe(about).meta({ [STAGE_REF]: part });

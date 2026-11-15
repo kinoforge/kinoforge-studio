@@ -61,12 +61,11 @@ function Marker({
 
 export function ListView({ piece, w, h, t, span, palette }: PieceProps<"list">) {
   const rows = piece.items.length;
-  const longest = piece.items.reduce((a, b) => (b.length > a.length ? b : a), "");
   const size = FitText.size(
-    longest,
+    FitText.widest(piece.items),
     { w: w * 0.84, h: (h / rows) * 0.8 },
     Math.round((h / rows) * 0.5),
-    1,
+    2,
   );
   return (
     <div
@@ -96,8 +95,10 @@ export function ListView({ piece, w, h, t, span, palette }: PieceProps<"list">) 
                 fontSize: size,
                 fontWeight: 700,
                 color: palette.cardInk,
+                lineHeight: 1.15,
                 textDecoration: piece.style === "cross" ? "line-through" : undefined,
                 textDecorationColor: palette.bad,
+                ...FitText.clamp(2),
               }}
             >
               {item}
@@ -113,8 +114,12 @@ export function StepsView({ piece, w, h, t, span, palette }: PieceProps<"steps">
   const count = piece.items.length;
   const arrow = w * 0.06;
   const cell = (w - arrow * (count - 1)) / count;
-  const longest = piece.items.reduce((a, b) => (b.length > a.length ? b : a), "");
-  const size = FitText.size(longest, { w: cell * 0.82, h: h * 0.5 }, Math.round(h * 0.2), 3);
+  const size = FitText.size(
+    FitText.widest(piece.items),
+    { w: cell * 0.82, h: h * 0.5 },
+    Math.round(h * 0.2),
+    3,
+  );
   return (
     <div style={{ display: "flex", alignItems: "center", height: "100%" }}>
       {piece.items.map((item, i) => {
@@ -169,6 +174,8 @@ export function StepsView({ piece, w, h, t, span, palette }: PieceProps<"steps">
                   fontWeight: 800,
                   lineHeight: 1.1,
                   color: i === count - 1 ? "#fff" : palette.cardInk,
+                  maxWidth: cell * 0.88,
+                  ...FitText.clamp(3),
                 }}
               >
                 {item}
@@ -184,8 +191,8 @@ export function StepsView({ piece, w, h, t, span, palette }: PieceProps<"steps">
 export function TimelineView({ piece, w, h, t, span, palette }: PieceProps<"timeline">) {
   const rows = piece.items.length;
   const row = h / rows;
-  const longest = piece.items.reduce((a, b) => (b.text.length > a.length ? b.text : a), "");
-  const when = piece.items.reduce((a, b) => (b.when.length > a.length ? b.when : a), "");
+  const longest = FitText.widest(piece.items.map((item) => item.text));
+  const when = FitText.widest(piece.items.map((item) => item.when));
   const whenW = w * 0.26;
   const size = FitText.size(longest, { w: w * 0.6, h: row * 0.8 }, Math.round(row * 0.42), 2);
   const whenSize = Math.min(
@@ -226,7 +233,7 @@ export function TimelineView({ piece, w, h, t, span, palette }: PieceProps<"time
               style={{
                 width: whenW,
                 textAlign: "right",
-                whiteSpace: "nowrap",
+                ...FitText.line(),
                 fontSize: whenSize,
                 fontWeight: 900,
                 color: palette.accent,
@@ -253,6 +260,7 @@ export function TimelineView({ piece, w, h, t, span, palette }: PieceProps<"time
                 fontWeight: 700,
                 lineHeight: 1.15,
                 color: palette.cardInk,
+                ...FitText.clamp(2),
               }}
             >
               {item.text}
@@ -268,8 +276,11 @@ export function IconsView({ piece, w, h, t, span, palette }: PieceProps<"icons">
   const count = piece.items.length;
   const cell = w / count;
   const disc = Math.min(cell * 0.62, h * 0.6);
-  const size = Math.round(
-    Math.min(disc * 0.3, (cell * 1.5) / Math.max(6, ...piece.items.map((i) => i.label.length))),
+  const size = FitText.size(
+    FitText.widest(piece.items.map((item) => item.label)),
+    { w: cell * 0.92, h: Math.max(1, h - disc * 1.12) },
+    Math.round(disc * 0.3),
+    2,
   );
   return (
     <div
@@ -316,6 +327,9 @@ export function IconsView({ piece, w, h, t, span, palette }: PieceProps<"icons">
                 fontWeight: 800,
                 color: palette.cardInk,
                 textAlign: "center",
+                lineHeight: 1.15,
+                maxWidth: cell * 0.92,
+                ...FitText.clamp(2),
               }}
             >
               {item.label}

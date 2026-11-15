@@ -10,7 +10,7 @@ import { MapLayer } from "./map/view.tsx";
 import { MascotFigure } from "./mascot.tsx";
 import { BoardLanguage } from "./pieces/data.tsx";
 import { Ease } from "./pieces/ease.ts";
-import { PieceView, StampView } from "./pieces/index.tsx";
+import { PieceView, StampBadge, StampView } from "./pieces/index.tsx";
 import { RoadScene } from "./road/scene.ts";
 import { RoadView } from "./road/view.tsx";
 import type { Beat, Board, CaptionReserve, Mascot } from "./spec.ts";
@@ -137,6 +137,7 @@ function Card({
 }) {
   const pad = Math.min(box.w, box.h) * 0.09;
   const tilt = (((id * 37) % 5) - 2) * 0.45;
+  const radius = Math.min(box.w, box.h) * 0.08;
   return (
     <div
       style={{
@@ -145,15 +146,32 @@ function Card({
         top: box.y,
         width: box.w,
         height: box.h,
-        padding: pad,
-        boxSizing: "border-box",
         background: palette.card,
-        borderRadius: Math.min(box.w, box.h) * 0.08,
+        borderRadius: radius,
         boxShadow: `0 ${box.h * 0.03}px ${box.h * 0.09}px ${palette.shadow}`,
         opacity,
         transform: `rotate(${tilt}deg) scale(${scale})`,
       }}
     >
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          padding: pad,
+          boxSizing: "border-box",
+          borderRadius: radius,
+          overflow: "hidden",
+        }}
+      >
+        <PieceView
+          piece={beat.piece}
+          w={box.w - pad * 2}
+          h={box.h - pad * 2}
+          t={t}
+          span={span}
+          palette={palette}
+        />
+      </div>
       {palette.tape ? (
         <div
           style={{
@@ -168,14 +186,6 @@ function Card({
           }}
         />
       ) : null}
-      <PieceView
-        piece={beat.piece}
-        w={box.w - pad * 2}
-        h={box.h - pad * 2}
-        t={t}
-        span={span}
-        palette={palette}
-      />
     </div>
   );
 }
@@ -201,7 +211,12 @@ class ScenePose {
 /** One scene of an explainer: pieces arrive on the narration's cues and stack on a board that
  *  reflows as they come and go, beside a mascot that talks with the voice. The board is data
  *  (spec.ts); nothing here takes a position from the writer. */
-export function ExplainerScene({ language = "en", ...props }: ExplainerProps) {
+export function ExplainerScene(props: ExplainerProps) {
+  const frame = useCurrentFrame();
+  return <BoardMoment {...props} t={frame / props.fps} />;
+}
+
+export function BoardMoment({ language = "en", ...props }: ExplainerProps & { t: number }) {
   return (
     <BoardLanguage.Provider value={language}>
       <BoardScene {...props} />
@@ -210,7 +225,6 @@ export function ExplainerScene({ language = "en", ...props }: ExplainerProps) {
 }
 
 function BoardScene({
-  fps,
   width,
   height,
   seconds,
@@ -221,9 +235,8 @@ function BoardScene({
   reserve = "bottom",
   stage,
   history = [],
-}: ExplainerProps) {
-  const frame = useCurrentFrame();
-  const t = frame / fps;
+  t,
+}: ExplainerProps & { t: number }) {
   const palette = BoardThemes.of(theme);
   const beats = board.beats;
   const starts = useMemo(() => BoardCues.resolve(beats, words, seconds), [beats, words, seconds]);
@@ -260,7 +273,20 @@ function BoardScene({
     if (beats[i].clear) stamp = -1;
     if (beats[i].piece.type === "stamp") stamp = i;
   }
-  const stampPiece = stamp >= 0 ? beats[stamp].piece : null;
+  const stampPiece = stamp >= 0 && StampBadge.shows(t - starts[stamp]) ? beats[stamp].piece : null;
+  const stampCard = stamp >= 0 ? BoardStack.visible(beats, stamp, capacity).at(-1) : undefined;
+  const cardBox = (id: number) =>
+    CardMotion.place(id === current ? undefined : beforeBoxes.get(id), nowBoxes.get(id), p);
+  const stampAnchor =
+    stampCard != null && ids.includes(stampCard)
+      ? cardBox(stampCard).box
+      : band && band.h > 0
+        ? band
+        : layout.content;
+  const stampSize =
+    stampPiece?.type === "stamp"
+      ? StampBadge.size(stampPiece.text, Math.min(width, height), stampAnchor.w)
+      : 0;
 
   return (
     <AbsoluteFill
@@ -272,6 +298,8 @@ function BoardScene({
           script={diagram.script}
           boxes={diagram.boxes}
           from={diagram.from}
+          wide={diagram.wide}
+          fromWide={diagram.fromWide}
           stage={stageNodes}
           t={t}
           palette={palette}
@@ -281,11 +309,7 @@ function BoardScene({
       {road ? <RoadView plan={road} t={t} palette={palette} /> : null}
       {map ? <MapLayer plan={map} t={t} palette={palette} /> : null}
       {ids.map((id) => {
-        const place = CardMotion.place(
-          id === current ? undefined : beforeBoxes.get(id),
-          nowBoxes.get(id),
-          p,
-        );
+        const place = cardBox(id);
         return (
           <Card
             key={id}
@@ -304,22 +328,16 @@ function BoardScene({
         <div
           style={{
             position: "absolute",
-            left: layout.content.x,
-            top: layout.content.y,
-            width: layout.content.w,
-            height: layout.content.h,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            left: Math.min(
+              stampAnchor.x + stampAnchor.w + stampSize * 0.4,
+              width - stampSize * 0.6,
+            ),
+            top: Math.max(stampSize * 0.6, stampAnchor.y),
+            transform: "translate(-100%, -50%)",
             pointerEvents: "none",
           }}
         >
-          <StampView
-            piece={stampPiece}
-            w={layout.content.w}
-            t={t - starts[stamp]}
-            palette={palette}
-          />
+          <StampView piece={stampPiece} size={stampSize} t={t - starts[stamp]} palette={palette} />
         </div>
       ) : null}
       {mascot && layout.mascot ? (

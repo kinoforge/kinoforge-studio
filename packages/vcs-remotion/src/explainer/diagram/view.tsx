@@ -2,7 +2,7 @@ import { BOARD_ICONS } from "../icons/index.ts";
 import { Ease } from "../pieces/ease.ts";
 import { BOARD_MONO, type BoardPalette } from "../theme.ts";
 import { type Box, FitText } from "../timeline.ts";
-import { DiagramLayout, type Point } from "./layout.ts";
+import { DiagramRoutes, Route } from "./route.ts";
 import { MARK_COLORS, type StageNode } from "./spec.ts";
 import type { DiagramScript, Ring, Span } from "./state.ts";
 
@@ -76,7 +76,7 @@ function DiagramNode({
     { w: box.w * 0.9, h: box.h * 0.16 },
     Math.round(box.h * 0.1),
     1,
-    FitText.MONO,
+    "mono",
   );
   const p = Ease.clamp(presence.p);
   const scale = (0.6 + 0.4 * presence.p) * (1 - 0.2 * presence.gone) * (1 + bump);
@@ -130,6 +130,7 @@ function DiagramNode({
             color: palette.cardInk,
             textAlign: "center",
             maxWidth: box.w * 0.9,
+            ...FitText.clamp(2),
           }}
         >
           {look.label}
@@ -140,7 +141,8 @@ function DiagramNode({
               fontFamily: BOARD_MONO,
               fontSize: small,
               color: palette.muted,
-              whiteSpace: "nowrap",
+              ...FitText.line(),
+              maxWidth: box.w * 0.9,
             }}
           >
             {detail}
@@ -175,22 +177,17 @@ function DiagramNode({
 class LabelSpots {
   static readonly SPOTS = [0.5, 0.3, 0.7, 0.2, 0.8];
 
-  static of(
-    arrows: readonly { key: string; a: Point; b: Point; label?: string }[],
-    stroke: number,
-  ) {
+  static of(arrows: readonly { key: string; route: Route; label?: string }[], stroke: number) {
     const taken: Box[] = [];
     const out = new Map<string, number>();
-    for (const { key, a, b, label } of arrows) {
+    for (const { key, route, label } of arrows) {
       if (!label) continue;
-      const w = label.length * FitText.SANS * stroke * 6 + stroke * 5;
+      const w = FitText.width(label, stroke * 6) + stroke * 5;
       const h = stroke * 9;
-      const at = (p: number): Box => ({
-        x: a.x + (b.x - a.x) * p - w / 2,
-        y: a.y + (b.y - a.y) * p - h / 2,
-        w,
-        h,
-      });
+      const at = (p: number): Box => {
+        const spot = route.at(p);
+        return { x: spot.x - w / 2, y: spot.y - h / 2, w, h };
+      };
       const clear = (box: Box) => !taken.some((other) => LabelSpots.overlap(box, other));
       const spot = LabelSpots.SPOTS.find((p) => clear(at(p))) ?? 0.5;
       taken.push(at(spot));
@@ -205,8 +202,7 @@ class LabelSpots {
 }
 
 function Arrow({
-  a,
-  b,
+  route,
   draw,
   fade,
   label,
@@ -214,8 +210,7 @@ function Arrow({
   stroke,
   palette,
 }: {
-  a: Point;
-  b: Point;
+  route: Route;
   draw: number;
   fade: number;
   label?: string;
@@ -223,26 +218,31 @@ function Arrow({
   stroke: number;
   palette: BoardPalette;
 }) {
-  const length = Math.hypot(b.x - a.x, b.y - a.y);
+  const length = route.length;
   if (length < 1) return null;
-  const ux = (b.x - a.x) / length;
-  const uy = (b.y - a.y) / length;
   const head = stroke * 4.2;
-  const tip = { x: a.x + ux * length * draw, y: a.y + uy * length * draw };
+  const reach = Ease.clamp(draw);
+  const tip = route.at(reach);
+  const behind = route.at(Math.max(0, reach - head / length));
+  const run = Math.hypot(tip.x - behind.x, tip.y - behind.y) || 1;
+  const ux = (tip.x - behind.x) / run;
+  const uy = (tip.y - behind.y) / run;
   const back = { x: tip.x - ux * head, y: tip.y - uy * head };
   const side = { x: -uy * head * 0.55, y: ux * head * 0.55 };
   const color = palette.muted;
-  const mid = { x: a.x + (b.x - a.x) * spot, y: a.y + (b.y - a.y) * spot };
+  const mid = route.at(spot);
+  const line = [...route.until(Math.max(0, reach - head / length)), back]
+    .map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+    .join(" ");
   return (
     <g opacity={1 - fade}>
-      <line
-        x1={a.x}
-        y1={a.y}
-        x2={back.x}
-        y2={back.y}
+      <path
+        d={line}
+        fill="none"
         stroke={color}
         strokeWidth={stroke}
         strokeLinecap="round"
+        strokeLinejoin="round"
       />
       <polygon
         points={`${tip.x},${tip.y} ${back.x + side.x},${back.y + side.y} ${back.x - side.x},${back.y - side.y}`}
@@ -285,6 +285,8 @@ export function DiagramView({
   script,
   boxes,
   from,
+  wide,
+  fromWide,
   stage,
   t,
   palette,
@@ -292,6 +294,8 @@ export function DiagramView({
   script: DiagramScript;
   boxes: ReadonlyMap<string, Box>;
   from: ReadonlyMap<string, Box> | null;
+  wide: boolean;
+  fromWide: boolean;
   stage: ReadonlyMap<string, StageNode>;
   t: number;
   palette: BoardPalette;
@@ -327,19 +331,27 @@ export function DiagramView({
       ),
     );
 
+  const routes = DiagramRoutes.of(script.arrows, boxes, wide, gap);
+  const glide = from ? Ease.out(t, Glide.SECONDS) : 1;
+  const earlier = glide < 1 && from ? DiagramRoutes.of(script.arrows, from, fromWide, gap) : null;
+  const routeOf = (key: string): Route | undefined => {
+    const route = routes.get(key);
+    const before = earlier?.get(key);
+    const span = script.links.get(key);
+    if (!route || !before || span?.enter != null) return route;
+    return Route.blend(before, route, glide);
+  };
   const arrows = script.arrows.flatMap((link) => {
-    const a = placed.get(link.from);
-    const b = placed.get(link.to);
-    if (!a || !b || !shows(link.from) || !shows(link.to)) return [];
+    if (!shows(link.from) || !shows(link.to)) return [];
     const key = `${link.from}>${link.to}`;
     const span = script.links.get(key);
     if (!span || (span.enter != null && t < span.enter)) return [];
-    const [start, end] = DiagramLayout.ends(a, b, gap);
+    const route = routeOf(key);
+    if (!route) return [];
     return [
       {
         key,
-        a: start,
-        b: end,
+        route,
         label: link.label,
         draw: span.enter == null ? carried : Ease.out(t - span.enter, 0.45),
         fade: span.leave == null ? 0 : Ease.out(t - span.leave, 0.4),
@@ -355,11 +367,10 @@ export function DiagramView({
         width="100%"
         height="100%"
       >
-        {arrows.map(({ key, a, b, label, draw, fade }) => (
+        {arrows.map(({ key, route, label, draw, fade }) => (
           <Arrow
             key={key}
-            a={a}
-            b={b}
+            route={route}
             draw={draw}
             fade={fade}
             label={label}
@@ -374,13 +385,11 @@ export function DiagramView({
           if (local < 0 || local > total + 0.25) return null;
           const k = Math.min(trip.hops.length - 1, Math.floor(local / trip.hop));
           const hop = trip.hops[k];
-          const a = placed.get(hop.from);
-          const b = placed.get(hop.to);
-          if (!a || !b) return null;
-          const [start, end] = DiagramLayout.ends(a, b, gap);
+          const route = routeOf(`${hop.from}>${hop.to}`);
+          if (!route) return null;
           const f = Ease.clamp((local - k * trip.hop) / trip.hop);
           const s = f < 0.5 ? 2 * f * f : 1 - (-2 * f + 2) ** 2 / 2;
-          const at = { x: start.x + (end.x - start.x) * s, y: start.y + (end.y - start.y) * s };
+          const at = route.at(s);
           const r = stroke * 3.4;
           const fade = 1 - Ease.clamp((local - total) / 0.25);
           return (

@@ -27,7 +27,7 @@ export class DiagramLayout {
   static of(order: readonly string[], links: readonly DiagramLink[], area: Box): Map<string, Box> {
     const boxes = new Map<string, Box>();
     if (!order.length) return boxes;
-    const wide = area.w >= area.h;
+    const wide = DiagramLayout.wide(area);
     const spec = NODES[wide ? "wide" : "tall"];
     const inside = links.filter((l) => order.includes(l.from) && order.includes(l.to));
     const layers = inside.length
@@ -98,26 +98,7 @@ export class DiagramLayout {
     );
   }
 
-  /** Where an arrow from `a` to `b` starts and ends: on each box's edge, toward the other. */
-  static ends(a: Box, b: Box, gap: number): [Point, Point] {
-    const ca = DiagramLayout.center(a);
-    const cb = DiagramLayout.center(b);
-    return [DiagramLayout.edge(a, cb, gap), DiagramLayout.edge(b, ca, gap)];
-  }
-
-  static center(box: Box): Point {
-    return { x: box.x + box.w / 2, y: box.y + box.h / 2 };
-  }
-
-  private static edge(box: Box, toward: Point, gap: number): Point {
-    const c = DiagramLayout.center(box);
-    const dx = toward.x - c.x;
-    const dy = toward.y - c.y;
-    if (!dx && !dy) return c;
-    const scale = Math.min(
-      dx ? (box.w / 2 + gap) / Math.abs(dx) : Number.POSITIVE_INFINITY,
-      dy ? (box.h / 2 + gap) / Math.abs(dy) : Number.POSITIVE_INFINITY,
-    );
-    return { x: c.x + dx * scale, y: c.y + dy * scale };
+  static wide(area: Box): boolean {
+    return area.w >= area.h;
   }
 }

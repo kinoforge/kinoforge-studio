@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MARK_TONES } from "../diagram/spec.ts";
-import { slug, text } from "../fields.ts";
+import { slug, stageRef, text } from "../fields.ts";
 
 export const CODE_LANGS = [
   "typescript",
@@ -22,7 +22,7 @@ export const CODE_LANGS = [
 ] as const;
 export type CodeLang = (typeof CODE_LANGS)[number];
 
-const fileId = slug.describe("a file id from the STAGE");
+const fileId = stageRef("files", "a file id from the STAGE");
 const lineText = text(40).describe("text copied from one line of the file");
 
 export const codePiece = z.object({

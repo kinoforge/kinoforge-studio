@@ -1,4 +1,6 @@
+import type { CSSProperties } from "react";
 import type { CaptionWord } from "../captions.ts";
+import { GlyphWidths, type TextFace } from "./metrics.ts";
 import { type Beat, type Board, type CaptionReserve, PIECE_KINDS } from "./spec.ts";
 
 export interface Box {
@@ -217,27 +219,110 @@ export class SurfaceSplit {
   }
 }
 
-/** A font size that fits text into a box, from its length (no DOM measuring at render). The
- *  widths are those of the bold fallback faces the renderer has (DejaVu), the widest in use. */
+export interface FitMiss {
+  text: string;
+  room: number;
+}
+
 export class FitText {
-  static readonly SANS = 0.64;
-  static readonly MONO = 0.62;
+  static readonly MONO = GlyphWidths.MONO;
+  static readonly LEADING = 1.25;
+  static readonly SAFETY = 1.04;
+  static readonly SMALLEST = 12;
+  static readonly READABLE = 26;
+  private static misses: FitMiss[] | null = null;
+
+  static width(text: string, size: number, face: TextFace = "sans"): number {
+    let sum = 0;
+    for (const char of text) sum += GlyphWidths.of(char.codePointAt(0) ?? 32, face);
+    return sum * size * FitText.SAFETY;
+  }
+
+  static widest(texts: readonly string[], face: TextFace = "sans"): string {
+    return texts.reduce(
+      (a, b) => (FitText.width(b, 1, face) > FitText.width(a, 1, face) ? b : a),
+      "",
+    );
+  }
+
+  static lines(text: string, w: number, size: number, face: TextFace = "sans"): number {
+    const space = FitText.width(" ", size, face);
+    let lines = 1;
+    let used = 0;
+    for (const word of text.split(/\s+/).filter(Boolean)) {
+      const wide = FitText.width(word, size, face);
+      const need = used ? used + space + wide : wide;
+      if (need <= w) {
+        used = need;
+        continue;
+      }
+      if (used) lines += 1;
+      const extra = Math.max(0, Math.ceil(wide / w) - 1);
+      lines += extra;
+      used = wide - extra * w;
+    }
+    return lines;
+  }
 
   static size(
     text: string,
     box: { w: number; h: number },
     max: number,
     lines = 3,
-    charWidth = FitText.SANS,
+    face: TextFace = "sans",
   ): number {
-    const chars = Math.max(1, text.length);
-    const word = Math.max(1, ...text.split(/\s+/).map((part) => part.length));
-    for (let size = max; size > 12; size -= 2) {
-      const glyph = size * charWidth;
-      const perLine = Math.max(1, Math.floor(box.w / glyph));
-      const needed = Math.ceil((chars * 1.08) / perLine);
-      if (word * glyph <= box.w && needed <= lines && needed * size * 1.2 <= box.h) return size;
+    if (!text.trim()) return max;
+    const fits = (size: number) => {
+      const count = FitText.lines(text, box.w, size, face);
+      return count <= lines && count * size * FitText.LEADING <= box.h;
+    };
+    const step = Math.max(1, Math.round(max / 48));
+    let size = max;
+    while (size > FitText.SMALLEST && !fits(size)) size = Math.max(FitText.SMALLEST, size - step);
+    const readable = FitText.readable(max);
+    if (size < readable || !fits(size)) FitText.miss(text, box, readable, lines, face);
+    return size;
+  }
+
+  static clamp(lines: number): CSSProperties {
+    return {
+      display: "-webkit-box",
+      WebkitLineClamp: lines,
+      WebkitBoxOrient: "vertical",
+      overflow: "hidden",
+      overflowWrap: "anywhere",
+    };
+  }
+
+  static line(): CSSProperties {
+    return { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" };
+  }
+
+  static watch(run: () => void): FitMiss[] {
+    FitText.misses = [];
+    try {
+      run();
+      return FitText.misses;
+    } finally {
+      FitText.misses = null;
     }
-    return 12;
+  }
+
+  private static readable(max: number): number {
+    return Math.max(FitText.SMALLEST, Math.min(FitText.READABLE, max * 0.75));
+  }
+
+  private static miss(
+    text: string,
+    box: { w: number; h: number },
+    size: number,
+    lines: number,
+    face: TextFace,
+  ): void {
+    if (!FitText.misses) return;
+    const rows = Math.max(1, Math.min(lines, Math.floor(box.h / (size * FitText.LEADING))));
+    const share = (rows * box.w * 0.9) / Math.max(1, FitText.width(text, size, face));
+    const room = Math.max(1, Math.floor(Array.from(text).length * Math.min(1, share)));
+    if (!FitText.misses.some((miss) => miss.text === text)) FitText.misses.push({ text, room });
   }
 }
