@@ -14,6 +14,18 @@ export { DiagramScene } from "./diagram/scene.ts";
 export { MARK_COLORS, MARK_TONES, type MarkTone, type StageNode } from "./diagram/spec.ts";
 export { DiagramMemory, DiagramScript } from "./diagram/state.ts";
 export { BOARD_ICON_KEYS, BOARD_ICONS, type BoardIcon } from "./icons/index.ts";
+export { BoardElementsContext, BoardGlyph, BoardGlyphs, IconNames } from "./elements/glyph.tsx";
+export {
+  type BoardElement,
+  type BoardElements,
+  ELEMENT_KINDS,
+  ELEMENT_LIMITS,
+  type ElementKind,
+  type ElementShape,
+  elementSchema,
+  elementShapeSchema,
+  elementsSchema,
+} from "./elements/spec.ts";
 export { GreatCircle, MapViews, Projection, World } from "./map/geo.ts";
 export { MapScene } from "./map/scene.ts";
 export { MAP_REGIONS, ROUTE_MODES, type MapRegion, type StagePlace } from "./map/spec.ts";

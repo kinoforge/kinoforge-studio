@@ -2,6 +2,7 @@ import { z } from "zod";
 import { CAPTIONED_COMPOSITION_ID } from "./captioned-composition.tsx";
 import { CLIP_COMPOSITION_ID } from "./clip-composition.tsx";
 import { EXPLAINER_COMPOSITION_ID } from "./explainer/composition.tsx";
+import { elementsSchema } from "./explainer/elements/spec.ts";
 import { stageSchema } from "./explainer/stage.ts";
 import { CAPTION_RESERVES, boardSchema, boardThemeSchema, mascotSchema } from "./explainer/spec.ts";
 import { CAPTION_POSITIONS, STORY_COMPOSITION_ID } from "./story-composition.tsx";
@@ -85,6 +86,7 @@ const explainerInput = z.object({
     .string()
     .regex(/^[a-z]{2}$/)
     .optional(),
+  elements: elementsSchema.optional(),
 });
 
 export type EditDoc =

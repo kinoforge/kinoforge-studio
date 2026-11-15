@@ -230,6 +230,7 @@ export class FitText {
   static readonly SAFETY = 1.04;
   static readonly SMALLEST = 12;
   static readonly READABLE = 26;
+  static readonly WORD = 24;
   private static misses: FitMiss[] | null = null;
 
   static width(text: string, size: number, face: TextFace = "sans"): number {
@@ -272,7 +273,9 @@ export class FitText {
     face: TextFace = "sans",
   ): number {
     if (!text.trim()) return max;
+    const whole = text.split(/\s+/).filter((word) => FitText.whole(word, face));
     const fits = (size: number) => {
+      if (whole.some((word) => FitText.width(word, size, face) > box.w)) return false;
       const count = FitText.lines(text, box.w, size, face);
       return count <= lines && count * size * FitText.LEADING <= box.h;
     };
@@ -306,6 +309,14 @@ export class FitText {
     } finally {
       FitText.misses = null;
     }
+  }
+
+  private static whole(word: string, face: TextFace): boolean {
+    const chars = Array.from(word);
+    return (
+      chars.length <= FitText.WORD &&
+      chars.every((char) => GlyphWidths.of(char.codePointAt(0) ?? 32, face) < 1)
+    );
   }
 
   private static readable(max: number): number {

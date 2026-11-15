@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { icon, slug, stageRef, text } from "../fields.ts";
+import { picture, slug, stageRef, text } from "../fields.ts";
 
 export const MARK_TONES = ["focus", "good", "bad", "warn"] as const;
 export type MarkTone = (typeof MARK_TONES)[number];
@@ -46,7 +46,7 @@ export const hidePiece = z.object({
 export const stageNodeSchema = z.object({
   id: slug.describe("short kebab-case, unique"),
   label: text(18),
-  icon,
+  icon: picture.optional(),
   detail: text(26).optional(),
 });
 export type StageNode = z.infer<typeof stageNodeSchema>;

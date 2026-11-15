@@ -5,6 +5,8 @@ import { CodeScene } from "./code/scene.ts";
 import { CodeView } from "./code/view.tsx";
 import { DiagramScene } from "./diagram/scene.ts";
 import { DiagramView } from "./diagram/view.tsx";
+import { BoardElementsContext } from "./elements/glyph.tsx";
+import type { BoardElements } from "./elements/spec.ts";
 import { MapScene } from "./map/scene.ts";
 import { MapLayer } from "./map/view.tsx";
 import { MascotFigure } from "./mascot.tsx";
@@ -37,6 +39,7 @@ export type ExplainerProps = {
   history?: Board[];
   /** The narration's language (ISO 639-1), for how numbers are written. */
   language?: string;
+  elements?: BoardElements;
 };
 
 export const DEFAULT_EXPLAINER_PROPS: ExplainerProps = {
@@ -216,10 +219,16 @@ export function ExplainerScene(props: ExplainerProps) {
   return <BoardMoment {...props} t={frame / props.fps} />;
 }
 
-export function BoardMoment({ language = "en", ...props }: ExplainerProps & { t: number }) {
+export function BoardMoment({
+  language = "en",
+  elements,
+  ...props
+}: ExplainerProps & { t: number }) {
   return (
     <BoardLanguage.Provider value={language}>
-      <BoardScene {...props} />
+      <BoardElementsContext.Provider value={elements ?? {}}>
+        <BoardScene {...props} />
+      </BoardElementsContext.Provider>
     </BoardLanguage.Provider>
   );
 }

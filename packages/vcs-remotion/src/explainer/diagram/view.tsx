@@ -1,4 +1,4 @@
-import { BOARD_ICONS } from "../icons/index.ts";
+import { BoardGlyph } from "../elements/glyph.tsx";
 import { Ease } from "../pieces/ease.ts";
 import { BOARD_MONO, type BoardPalette } from "../theme.ts";
 import { type Box, FitText } from "../timeline.ts";
@@ -64,7 +64,7 @@ function DiagramNode({
   bump: number;
   palette: BoardPalette;
 }) {
-  const icon = "icon" in look ? BOARD_ICONS[look.icon]?.icon : undefined;
+  const icon = "icon" in look ? look.icon : undefined;
   const detail = "detail" in look ? look.detail : undefined;
   const tone = ring ? palette[MARK_COLORS[ring.tone]] : null;
   const label = FitText.size(
@@ -118,12 +118,7 @@ function DiagramNode({
           gap: box.h * 0.04,
         }}
       >
-        {icon
-          ? (() => {
-              const Icon = icon;
-              return <Icon size={box.h * 0.34} color={tone ?? palette.accent} strokeWidth={2.2} />;
-            })()
-          : null}
+        <BoardGlyph name={icon} size={box.h * 0.34} color={tone ?? palette.accent} />
         <div
           style={{
             fontSize: label,

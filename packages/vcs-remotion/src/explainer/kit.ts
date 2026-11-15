@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { STAGE_REF } from "./fields.ts";
-import { BOARD_ICON_GROUPS, BOARD_ICONS, BOARD_ICON_KEYS } from "./icons/index.ts";
+import { ELEMENT_KINDS, ELEMENT_LIMITS, elementSchema } from "./elements/spec.ts";
+import { BOARD_ICONS, BOARD_ICON_KEYS } from "./icons/index.ts";
 import { MASCOTS } from "./mascot.tsx";
 import { EXPLAINER_COMPOSITION_ID } from "./composition.tsx";
 import {
@@ -106,7 +107,7 @@ class Signature {
  *  writer model reads, and the registry of named assets a board or a picker may use. All of
  *  it is derived from spec.ts, icons/ and the mascot rigs, so they never drift apart. */
 export class ExplainerKit {
-  static readonly VERSION = 10;
+  static readonly VERSION = 11;
 
   static schema(): Record<string, unknown> {
     return ExplainerKit.json(boardSchema);
@@ -147,10 +148,7 @@ export class ExplainerKit {
       `${field.minItems ?? 0} to ${field.maxItems} of ${Signature.of(field.items ?? {})}`;
     return [
       `STAGE: {"nodes": ${many(fields.nodes)}, "files"?: ${many(fields.files)}, "road"?: ${Signature.of(fields.road ?? {})}, "places"?: ${many(fields.places)}, "surfaces": ${many(fields.surfaces)}, "icons": ${many(fields.icons)}}`,
-      "ICONS:",
-      ...Object.entries(BOARD_ICON_GROUPS).map(
-        ([group, icons]) => `- ${group}: ${Object.keys(icons).join(", ")}`,
-      ),
+      "A node's icon and the icons are plain words for the pictures: the thing itself (train wheel, leaf, server), or a brand's logo (postgresql logo). They are matched to drawings after you answer.",
     ].join("\n");
   }
 
@@ -210,6 +208,11 @@ export class ExplainerKit {
         schema: ExplainerKit.json(stageSchema),
         catalog: ExplainerKit.stageCatalog(),
         ref: STAGE_REF,
+      },
+      elements: {
+        kinds: ELEMENT_KINDS,
+        limits: ELEMENT_LIMITS,
+        schema: ExplainerKit.json(elementSchema),
       },
       assets: ExplainerKit.assets(),
     };

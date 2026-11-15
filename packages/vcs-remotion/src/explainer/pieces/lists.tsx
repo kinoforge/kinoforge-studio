@@ -1,4 +1,4 @@
-import { BOARD_ICONS } from "../icons/index.ts";
+import { BoardGlyph } from "../elements/glyph.tsx";
 import { FitText } from "../timeline.ts";
 import type { BoardPalette } from "../theme.ts";
 import { Ease, type PieceProps } from "./ease.ts";
@@ -292,7 +292,6 @@ export function IconsView({ piece, w, h, t, span, palette }: PieceProps<"icons">
       }}
     >
       {piece.items.map((item, i) => {
-        const Icon = BOARD_ICONS[item.icon].icon;
         const p = Ease.pop(t, 0.4, Ease.stagger(i, count, span));
         const color = i % 2 ? palette.accent2 : palette.accent;
         return (
@@ -318,7 +317,7 @@ export function IconsView({ piece, w, h, t, span, palette }: PieceProps<"icons">
                 transform: `scale(${p}) rotate(${(1 - Ease.clamp(p)) * -20}deg)`,
               }}
             >
-              <Icon size={disc * 0.56} color={color} strokeWidth={2.2} />
+              <BoardGlyph name={item.icon} size={disc * 0.56} color={color} fallback={item.label} />
             </div>
             <div
               style={{

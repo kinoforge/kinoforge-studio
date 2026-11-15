@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { z } from "zod";
 import { BoardMoment } from "./composition.tsx";
+import { type BoardElements, elementsSchema } from "./elements/spec.ts";
 import {
   type Board,
   CAPTION_RESERVES,
@@ -19,6 +20,7 @@ export const fitRequestSchema = z.object({
   mascot: mascotSchema.nullable().optional(),
   language: z.string().max(16).optional(),
   stage: z.unknown().optional(),
+  elements: z.unknown().optional(),
   boards: z.array(z.unknown().nullable()).max(200),
   check: z.array(z.number().int().min(0)).max(200),
 });
@@ -35,6 +37,7 @@ export class BoardFit {
       return parsed.success ? parsed.data : null;
     });
     const stage = stageSchema.safeParse(request.stage);
+    const elements = elementsSchema.safeParse(request.elements ?? {});
     const out: Record<number, string[]> = {};
     for (const index of new Set(request.check)) {
       const board = boards[index];
@@ -45,6 +48,7 @@ export class BoardFit {
         history,
         request,
         stage.success ? stage.data : null,
+        elements.success ? elements.data : {},
         render,
       );
       if (problems.length) out[index] = problems;
@@ -57,6 +61,7 @@ export class BoardFit {
     history: Board[],
     request: FitRequest,
     stage: z.infer<typeof stageSchema> | null,
+    elements: BoardElements,
     render: Render,
   ): string[] {
     const seconds = board.beats.length * BoardFit.BEAT_SECONDS;
@@ -74,6 +79,7 @@ export class BoardFit {
       stage,
       history,
       language: request.language,
+      elements,
     };
     const misses = FitText.watch(() => {
       board.beats.forEach((_, i) => {

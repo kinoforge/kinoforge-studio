@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { codeFileSchema } from "./code/spec.ts";
 import { stageNodeSchema } from "./diagram/spec.ts";
-import { icon } from "./fields.ts";
+import { picture } from "./fields.ts";
 import { stagePlaceSchema } from "./map/spec.ts";
 import { roadStageSchema } from "./road/spec.ts";
 import { SURFACES } from "./spec.ts";
@@ -16,6 +16,6 @@ export const stageSchema = z.object({
   road: roadStageSchema.optional(),
   places: z.array(stagePlaceSchema).max(12).optional(),
   surfaces: z.array(z.enum(SURFACES)).max(SURFACES.length).optional(),
-  icons: z.array(icon).max(32).optional(),
+  icons: z.array(picture).max(32).optional(),
 });
 export type Stage = z.infer<typeof stageSchema>;
