@@ -23,6 +23,12 @@ export class Ease {
     return 1 - (1 - x) ** 3;
   }
 
+  /** 0 to 1 over `duration` seconds after `delay`, easing in and out. */
+  static inOut(t: number, duration: number, delay = 0): number {
+    const x = Ease.clamp((t - delay) / Math.max(0.001, duration));
+    return x * x * (3 - 2 * x);
+  }
+
   /** 0 to 1 with a small overshoot, for things that pop in. */
   static pop(t: number, duration: number, delay = 0): number {
     const x = Ease.clamp((t - delay) / Math.max(0.001, duration));

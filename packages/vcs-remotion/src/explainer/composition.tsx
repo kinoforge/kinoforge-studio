@@ -203,6 +203,19 @@ function Card({
   );
 }
 
+/** How far the board has left: after the last word, in the scene's closing moment, everything on
+ *  it drifts up and fades so the next scene's first card rises into a clear board. */
+class SceneExit {
+  static readonly SECONDS = 0.45;
+  static readonly RISE = 0.035;
+
+  static of(t: number, seconds: number, words: readonly CaptionWord[]): number {
+    const spoken = words.reduce((end, word) => Math.max(end, word.end), 0);
+    const from = Math.max(spoken, seconds - SceneExit.SECONDS);
+    return seconds - from > 0 ? Ease.inOut(t - from, seconds - from) : 0;
+  }
+}
+
 class ScenePose {
   static open(words: readonly CaptionWord[], t: number): number {
     const word = words.find((entry) => t >= entry.start && t < entry.end);
@@ -312,60 +325,73 @@ function BoardScene({
     stampPiece?.type === "stamp"
       ? StampBadge.size(stampPiece.text, Math.min(width, height), stampAnchor.w)
       : 0;
+  const leave = SceneExit.of(t, seconds, words);
 
   return (
     <AbsoluteFill
       style={{ backgroundColor: palette.background, fontFamily: BOARD_FONT, overflow: "hidden" }}
     >
       <Backdrop palette={palette} width={width} />
-      {diagram ? (
-        <DiagramView
-          script={diagram.script}
-          boxes={diagram.boxes}
-          from={diagram.from}
-          wide={diagram.wide}
-          fromWide={diagram.fromWide}
-          area={diagram.area}
-          stage={stageNodes}
-          t={t}
-          palette={palette}
-        />
-      ) : null}
-      {code ? <CodeView plan={code} t={t} palette={palette} /> : null}
-      {road ? <RoadView plan={road} t={t} palette={palette} /> : null}
-      {map ? <MapLayer plan={map} t={t} palette={palette} /> : null}
-      {ids.map((id) => {
-        const place = cardBox(id);
-        return (
-          <Card
-            key={id}
-            beat={beats[id]}
-            id={id}
-            box={place.box}
-            opacity={place.opacity}
-            scale={place.scale}
-            t={t - starts[id]}
-            span={(starts[id + 1] ?? seconds) - starts[id]}
+      <AbsoluteFill
+        style={{
+          opacity: 1 - leave,
+          transform: `translateY(${-leave * height * SceneExit.RISE}px)`,
+        }}
+      >
+        {diagram ? (
+          <DiagramView
+            script={diagram.script}
+            boxes={diagram.boxes}
+            from={diagram.from}
+            wide={diagram.wide}
+            fromWide={diagram.fromWide}
+            area={diagram.area}
+            stage={stageNodes}
+            t={t}
             palette={palette}
           />
-        );
-      })}
-      {stampPiece?.type === "stamp" ? (
-        <div
-          style={{
-            position: "absolute",
-            left: Math.min(
-              stampAnchor.x + stampAnchor.w + stampSize * 0.4,
-              width - stampSize * 0.6,
-            ),
-            top: Math.max(stampSize * 0.6, stampAnchor.y),
-            transform: "translate(-100%, -50%)",
-            pointerEvents: "none",
-          }}
-        >
-          <StampView piece={stampPiece} size={stampSize} t={t - starts[stamp]} palette={palette} />
-        </div>
-      ) : null}
+        ) : null}
+        {code ? <CodeView plan={code} t={t} palette={palette} /> : null}
+        {road ? <RoadView plan={road} t={t} palette={palette} /> : null}
+        {map ? <MapLayer plan={map} t={t} palette={palette} /> : null}
+        {ids.map((id) => {
+          const place = cardBox(id);
+          return (
+            <Card
+              key={id}
+              beat={beats[id]}
+              id={id}
+              box={place.box}
+              opacity={place.opacity}
+              scale={place.scale}
+              t={t - starts[id]}
+              span={(starts[id + 1] ?? seconds) - starts[id]}
+              palette={palette}
+            />
+          );
+        })}
+        {stampPiece?.type === "stamp" ? (
+          <div
+            style={{
+              position: "absolute",
+              left: Math.min(
+                stampAnchor.x + stampAnchor.w + stampSize * 0.4,
+                width - stampSize * 0.6,
+              ),
+              top: Math.max(stampSize * 0.6, stampAnchor.y),
+              transform: "translate(-100%, -50%)",
+              pointerEvents: "none",
+            }}
+          >
+            <StampView
+              piece={stampPiece}
+              size={stampSize}
+              t={t - starts[stamp]}
+              palette={palette}
+            />
+          </div>
+        ) : null}
+      </AbsoluteFill>
       {mascot && layout.mascot ? (
         <div
           style={{
