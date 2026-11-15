@@ -61,8 +61,8 @@ function Marker({
 
 export function ListView({ piece, w, h, t, span, palette }: PieceProps<"list">) {
   const rows = piece.items.length;
-  const size = FitText.size(
-    FitText.widest(piece.items),
+  const size = FitText.each(
+    piece.items,
     { w: w * 0.84, h: (h / rows) * 0.8 },
     Math.round((h / rows) * 0.5),
     2,
@@ -114,12 +114,7 @@ export function StepsView({ piece, w, h, t, span, palette }: PieceProps<"steps">
   const count = piece.items.length;
   const arrow = w * 0.06;
   const cell = (w - arrow * (count - 1)) / count;
-  const size = FitText.size(
-    FitText.widest(piece.items),
-    { w: cell * 0.82, h: h * 0.5 },
-    Math.round(h * 0.2),
-    3,
-  );
+  const size = FitText.each(piece.items, { w: cell * 0.82, h: h * 0.5 }, Math.round(h * 0.2), 3);
   return (
     <div style={{ display: "flex", alignItems: "center", height: "100%" }}>
       {piece.items.map((item, i) => {
@@ -191,13 +186,21 @@ export function StepsView({ piece, w, h, t, span, palette }: PieceProps<"steps">
 export function TimelineView({ piece, w, h, t, span, palette }: PieceProps<"timeline">) {
   const rows = piece.items.length;
   const row = h / rows;
-  const longest = FitText.widest(piece.items.map((item) => item.text));
-  const when = FitText.widest(piece.items.map((item) => item.when));
   const whenW = w * 0.26;
-  const size = FitText.size(longest, { w: w * 0.6, h: row * 0.8 }, Math.round(row * 0.42), 2);
+  const size = FitText.each(
+    piece.items.map((item) => item.text),
+    { w: w * 0.6, h: row * 0.8 },
+    Math.round(row * 0.42),
+    2,
+  );
   const whenSize = Math.min(
     size,
-    FitText.size(when, { w: whenW, h: row * 0.6 }, Math.round(row * 0.42), 1),
+    FitText.each(
+      piece.items.map((item) => item.when),
+      { w: whenW, h: row * 0.6 },
+      Math.round(row * 0.42),
+      1,
+    ),
   );
   const line = Ease.out(t, Math.max(0.6, span * 0.7), 0.1);
   return (
@@ -276,8 +279,8 @@ export function IconsView({ piece, w, h, t, span, palette }: PieceProps<"icons">
   const count = piece.items.length;
   const cell = w / count;
   const disc = Math.min(cell * 0.62, h * 0.6);
-  const size = FitText.size(
-    FitText.widest(piece.items.map((item) => item.label)),
+  const size = FitText.each(
+    piece.items.map((item) => item.label),
     { w: cell * 0.92, h: Math.max(1, h - disc * 1.12) },
     Math.round(disc * 0.3),
     2,

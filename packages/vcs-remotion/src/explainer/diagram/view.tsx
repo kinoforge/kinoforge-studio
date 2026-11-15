@@ -8,6 +8,13 @@ import { DiagramRoutes, Route } from "./route.ts";
 import { MARK_COLORS, type StageNode } from "./spec.ts";
 import type { DiagramScript, Ring, Span } from "./state.ts";
 
+class NodeRow {
+  static readonly WIDE = 2;
+  static readonly ICON = 0.56;
+  static readonly INSET = 0.18;
+  static readonly GAP = 0.12;
+}
+
 /** A node's look when the stage never named it: its id read as words. */
 class NodeNames {
   static of(id: string, stage: ReadonlyMap<string, StageNode>): StageNode | { label: string } {
@@ -67,16 +74,19 @@ function DiagramNode({
   const icon = "icon" in look ? look.icon : undefined;
   const detail = "detail" in look ? look.detail : undefined;
   const tone = ring ? palette[MARK_COLORS[ring.tone]] : null;
+  const row = icon != null && box.w >= box.h * NodeRow.WIDE;
+  const glyph = box.h * (row ? NodeRow.ICON : 0.34);
+  const textW = row ? box.w - glyph - box.h * (NodeRow.INSET * 2 + NodeRow.GAP) : box.w * 0.88;
   const label = FitText.size(
     look.label,
-    { w: box.w * 0.88, h: box.h * (detail ? 0.3 : 0.42) },
-    Math.round(box.h * 0.18),
+    { w: textW, h: box.h * (row ? (detail ? 0.5 : 0.76) : detail ? 0.3 : 0.42) },
+    Math.round(box.h * (row ? 0.26 : 0.18)),
     2,
   );
   const small = FitText.size(
     detail ?? "",
-    { w: box.w * 0.9, h: box.h * 0.16 },
-    Math.round(box.h * 0.1),
+    { w: textW, h: box.h * (row ? 0.22 : 0.16) },
+    Math.round(box.h * (row ? 0.14 : 0.1)),
     1,
     "mono",
   );
@@ -102,8 +112,9 @@ function DiagramNode({
           : `0 ${box.h * 0.04}px ${box.h * 0.12}px ${palette.shadow}`,
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
+        alignItems: row ? "flex-start" : "center",
         justifyContent: "center",
+        paddingLeft: row ? box.h * NodeRow.INSET : 0,
         gap: box.h * 0.04,
         opacity: p * (1 - presence.gone),
         transform: `scale(${scale})`,
@@ -113,38 +124,48 @@ function DiagramNode({
         style={{
           opacity: dim,
           display: "flex",
-          flexDirection: "column",
+          flexDirection: row ? "row" : "column",
           alignItems: "center",
-          gap: box.h * 0.04,
+          gap: box.h * (row ? NodeRow.GAP : 0.04),
         }}
       >
-        <BoardGlyph name={icon} size={box.h * 0.34} color={tone ?? palette.accent} />
+        <BoardGlyph name={icon} size={glyph} color={tone ?? palette.accent} />
         <div
           style={{
-            fontSize: label,
-            fontWeight: 800,
-            lineHeight: 1.1,
-            color: palette.cardInk,
-            textAlign: "center",
-            maxWidth: box.w * 0.9,
-            ...FitText.clamp(2),
+            display: "flex",
+            flexDirection: "column",
+            alignItems: row ? "flex-start" : "center",
+            gap: box.h * 0.04,
+            maxWidth: textW,
           }}
         >
-          {look.label}
-        </div>
-        {detail ? (
           <div
             style={{
-              fontFamily: BOARD_MONO,
-              fontSize: small,
-              color: palette.muted,
-              ...FitText.line(),
-              maxWidth: box.w * 0.9,
+              fontSize: label,
+              fontWeight: 800,
+              lineHeight: 1.1,
+              color: palette.cardInk,
+              textAlign: row ? "left" : "center",
+              maxWidth: textW,
+              ...FitText.clamp(2),
             }}
           >
-            {detail}
+            {look.label}
           </div>
-        ) : null}
+          {detail ? (
+            <div
+              style={{
+                fontFamily: BOARD_MONO,
+                fontSize: small,
+                color: palette.muted,
+                ...FitText.line(),
+                maxWidth: textW,
+              }}
+            >
+              {detail}
+            </div>
+          ) : null}
+        </div>
       </div>
       {ring?.label ? (
         <div

@@ -194,13 +194,21 @@ export function ProgressView({ piece, w, h, t, span, palette }: PieceProps<"prog
 export function CompareView({ piece, w, h, t, span, palette }: PieceProps<"compare">) {
   const half = w * 0.43;
   const inner = half * 0.82;
-  const longest = FitText.widest([...piece.left.items, ...piece.right.items]);
   const rows = Math.max(piece.left.items.length, piece.right.items.length);
-  const size = FitText.size(longest, { w: inner, h: (h * 0.6) / rows }, Math.round(h * 0.11), 2);
-  const titles = FitText.widest([piece.left.title, piece.right.title]);
+  const size = FitText.each(
+    [...piece.left.items, ...piece.right.items],
+    { w: inner, h: (h * 0.6) / rows },
+    Math.round(h * 0.11),
+    2,
+  );
   const head = Math.min(
     Math.round(size * 1.4),
-    FitText.size(titles, { w: inner, h: h * 0.18 }, Math.round(h * 0.15), 1),
+    FitText.each(
+      [piece.left.title, piece.right.title],
+      { w: inner, h: h * 0.18 },
+      Math.round(h * 0.15),
+      1,
+    ),
   );
   const badge = Math.min(head * 1.6, (w - half * 2) * 1.1);
   const verdict = Ease.pop(t, 0.4, Math.max(1, span * 0.7));

@@ -6,18 +6,20 @@ export interface Point {
   y: number;
 }
 
-/** One frame shape's diagram proportions: a node's width to its height, its largest share of
- *  the area's short side, and how much of its cell it fills. */
+/** One frame shape's diagram proportions: a node's width to its height, how much wider it may
+ *  grow into free room, its largest share of the area's short side, and how much of its cell it
+ *  fills. */
 interface NodeSpec {
   aspect: number;
+  stretch: number;
   maxShare: number;
   mainFill: number;
   crossFill: number;
 }
 
 const NODES: Record<"tall" | "wide", NodeSpec> = {
-  wide: { aspect: 1.3, maxShare: 0.36, mainFill: 0.6, crossFill: 0.8 },
-  tall: { aspect: 1.3, maxShare: 0.26, mainFill: 0.62, crossFill: 0.82 },
+  wide: { aspect: 1.3, stretch: 3, maxShare: 0.36, mainFill: 0.6, crossFill: 0.8 },
+  tall: { aspect: 1.3, stretch: 3, maxShare: 0.26, mainFill: 0.62, crossFill: 0.82 },
 };
 
 export interface DiagramPlacing {
@@ -59,7 +61,7 @@ export class DiagramLayout {
     const tallest = wide ? cellCross * spec.crossFill : cellMain * spec.mainFill;
     const widest = wide ? cellMain * spec.mainFill : cellCross * spec.crossFill;
     const h = Math.min(tallest, widest / spec.aspect, Math.min(area.w, area.h) * spec.maxShare);
-    const w = h * spec.aspect;
+    const w = Math.min(widest, h * spec.stretch);
     layers.forEach((layer, rank) => {
       const offset = (crossLen - layer.length * cellCross) / 2;
       layer.forEach((id, k) => {

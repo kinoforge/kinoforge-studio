@@ -56,7 +56,7 @@ export class BoardCues {
   private static fill(found: (number | null)[], seconds: number): number[] {
     const end = Math.max(0.5, seconds * 0.85);
     const out = [...found];
-    if (out[0] == null) out[0] = 0;
+    out[0] = 0;
     for (let i = 1; i < out.length; i++) {
       if (out[i] != null) {
         out[i] = Math.max(out[i] as number, out[i - 1] as number);
@@ -239,10 +239,16 @@ export class FitText {
     return sum * size * FitText.SAFETY;
   }
 
-  static widest(texts: readonly string[], face: TextFace = "sans"): string {
+  static each(
+    texts: readonly string[],
+    box: { w: number; h: number },
+    max: number,
+    lines = 3,
+    face: TextFace = "sans",
+  ): number {
     return texts.reduce(
-      (a, b) => (FitText.width(b, 1, face) > FitText.width(a, 1, face) ? b : a),
-      "",
+      (least, text) => Math.min(least, FitText.size(text, box, max, lines, face)),
+      max,
     );
   }
 
