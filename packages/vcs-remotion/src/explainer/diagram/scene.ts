@@ -13,6 +13,7 @@ export interface DiagramPlan {
   wide: boolean;
   fromWide: boolean;
   band: Box;
+  area: Box;
 }
 
 export class DiagramScene {
@@ -48,6 +49,7 @@ export class DiagramScene {
       wide: DiagramLayout.wide(area),
       fromWide,
       band,
+      area,
     };
   }
 

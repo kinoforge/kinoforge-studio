@@ -300,6 +300,7 @@ function BoardScene({
           from={diagram.from}
           wide={diagram.wide}
           fromWide={diagram.fromWide}
+          area={diagram.area}
           stage={stageNodes}
           t={t}
           palette={palette}
