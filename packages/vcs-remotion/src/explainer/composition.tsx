@@ -232,6 +232,43 @@ class ScenePose {
   static blink(t: number): boolean {
     return t % 3.4 < 0.12;
   }
+
+  static look(t: number, target: Box, figure: Box, arrived: number): { x: number; y: number } {
+    const idle = { x: 0.5 * Math.sin(t * 0.7), y: 0.25 * Math.sin(t * 0.53) };
+    const dx = target.x + target.w / 2 - (figure.x + figure.w / 2);
+    const dy = target.y + target.h / 2 - (figure.y + figure.h * 0.4);
+    const length = Math.hypot(dx, dy) || 1;
+    const focus = arrived < 0 ? 0 : Ease.clamp(1 - (t - arrived) / 2.5);
+    return {
+      x: idle.x + (dx / length - idle.x) * focus,
+      y: idle.y + (dy / length - idle.y) * focus,
+    };
+  }
+
+  static cheer(beats: readonly Beat[], starts: readonly number[], t: number): number {
+    return Math.max(
+      0,
+      ...beats.map((beat, i) =>
+        beat.piece.type === "stamp" && t >= starts[i] && t < starts[i] + 0.9
+          ? Math.sin((Math.PI * (t - starts[i])) / 0.9)
+          : 0,
+      ),
+    );
+  }
+
+  static wave(first: boolean, t: number): number {
+    return first && t >= 0.3 && t < 2.3 ? Math.sin((Math.PI * (t - 0.3)) / 2) : 0;
+  }
+
+  static gesture(words: readonly CaptionWord[], t: number): number {
+    const speaking = Math.max(
+      0,
+      ...words.map(
+        (word) => Ease.clamp((t - word.start + 0.25) / 0.25) * Ease.clamp(1 - (t - word.end) / 0.4),
+      ),
+    );
+    return speaking * (0.5 + 0.5 * Math.sin(t * 2.6));
+  }
 }
 
 /** One scene of an explainer: pieces arrive on the narration's cues and stack on a board that
@@ -411,6 +448,17 @@ function BoardScene({
               open: ScenePose.open(words, t),
               blink: ScenePose.blink(t),
               point: ScenePose.point(starts, t),
+              look: ScenePose.look(
+                t,
+                current >= 0 && ids.includes(current)
+                  ? cardBox(current).box
+                  : (band ?? layout.content),
+                layout.mascot,
+                current >= 0 ? starts[current] : -1,
+              ),
+              cheer: ScenePose.cheer(beats, starts, t),
+              wave: ScenePose.wave(history.length === 0, t),
+              gesture: ScenePose.gesture(words, t),
               t,
             }}
           />

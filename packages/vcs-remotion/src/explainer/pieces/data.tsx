@@ -229,6 +229,9 @@ export function CompareView({ piece, w, h, t, span, palette }: PieceProps<"compa
           opacity: p,
           transform: `translateY(${(1 - p) * 30}px)`,
           position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
         }}
       >
         <div

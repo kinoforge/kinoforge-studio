@@ -10,6 +10,10 @@ export interface MascotPose {
   blink: boolean;
   /** 0 arm at rest to 1 pointing at the board. */
   point: number;
+  look: { x: number; y: number };
+  cheer: number;
+  wave: number;
+  gesture: number;
   /** Seconds into the scene, for the idle bob. */
   t: number;
 }
@@ -269,21 +273,26 @@ export function MascotFigure({
   const color = shape.color(palette);
   const ink = shape.screen ? palette.accent2 : "#1F1B16";
   const limb = Shade.of(color, -0.35);
-  const bob = Math.sin(pose.t * 2.2) * 3;
-  const squash = 1 + 0.015 * Math.sin(pose.t * 4.4);
+  const bob = Math.sin(pose.t * 2.2) * 3 - 24 * pose.cheer;
+  const squash = 1 + 0.015 * Math.sin(pose.t * 4.4) + 0.05 * pose.cheer;
+  const tilt = 4 * pose.point + (pose.mood === "thinking" ? 4 * Math.sin(pose.t * 1.3) : 0);
   const eyeRy = pose.blink ? 1.5 : pose.mood === "surprised" ? 20 : 16;
   const y = shape.shoulderY;
   const [left, right] = shape.shoulders;
-  const lift = pose.point;
-  const hand = { x: right + 10 + 14 * lift, y: y + 36 - 110 * lift };
+  const lift = Math.max(pose.point, pose.cheer, pose.wave);
+  const sway = pose.wave * 14 * Math.sin(pose.t * 12);
+  const hand = { x: right + 10 + 14 * lift + sway, y: y + 36 - 110 * lift };
+  const other = Math.max(pose.cheer, 0.3 * pose.gesture);
+  const free = { x: left - 10 - 14 * other, y: y + 40 - 110 * other };
+  const gaze = { x: 5 * pose.look.x, y: 4 * pose.look.y };
 
   return (
-    <svg viewBox="0 -70 200 310" width="100%" height="100%" style={{ overflow: "visible" }}>
+    <svg viewBox="0 -40 200 280" width="100%" height="100%" style={{ overflow: "visible" }}>
       <g
-        transform={`translate(0 ${bob}) translate(100 230) scale(1 ${squash}) translate(-100 -230)`}
+        transform={`translate(0 ${bob}) rotate(${tilt} 100 230) translate(100 230) scale(1 ${squash}) translate(-100 -230)`}
       >
         <path
-          d={`M${left} ${y} Q${left - 18} ${y + 18} ${left - 10} ${y + 38}`}
+          d={`M${left} ${y} Q${left - 20 * (1 - other)} ${y - 40 * other + 18} ${free.x} ${free.y}`}
           stroke={limb}
           strokeWidth={11}
           strokeLinecap="round"
@@ -296,7 +305,7 @@ export function MascotFigure({
           strokeLinecap="round"
           fill="none"
         />
-        <circle cx={left - 10} cy={y + 40} r={9} fill={limb} />
+        <circle cx={free.x} cy={free.y} r={9} fill={limb} />
         <circle cx={hand.x} cy={hand.y} r={9} fill={limb} />
         <shape.Body color={color} palette={palette} t={pose.t} />
         {shape.screen ? null : (
@@ -309,8 +318,8 @@ export function MascotFigure({
           shape.screen ? (
             <ellipse
               key={cx}
-              cx={cx}
-              cy={shape.eyeY}
+              cx={cx + gaze.x * 0.8}
+              cy={shape.eyeY + gaze.y * 0.8}
               rx={11}
               ry={pose.blink ? 1.5 : 13}
               fill={ink}
@@ -327,7 +336,7 @@ export function MascotFigure({
                 strokeWidth={2}
               />
               {pose.blink ? null : (
-                <circle cx={cx + 3} cy={shape.eyeY - 2} r={7.5} fill="#1F1B16" />
+                <circle cx={cx + gaze.x} cy={shape.eyeY + gaze.y} r={7.5} fill="#1F1B16" />
               )}
             </g>
           ),
