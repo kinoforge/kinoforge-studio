@@ -9,7 +9,7 @@ import {
   boardThemeSchema,
   mascotSchema,
 } from "./spec.ts";
-import { stageSchema } from "./stage.ts";
+import { shownStageSchema } from "./stage.ts";
 import { BoardCues, FitText } from "./timeline.ts";
 
 export const fitRequestSchema = z.object({
@@ -36,7 +36,7 @@ export class BoardFit {
       const parsed = boardSchema.safeParse(board);
       return parsed.success ? parsed.data : null;
     });
-    const stage = stageSchema.safeParse(request.stage);
+    const stage = shownStageSchema.safeParse(request.stage);
     const elements = elementsSchema.safeParse(request.elements ?? {});
     const out: Record<number, string[]> = {};
     for (const index of new Set(request.check)) {
@@ -60,7 +60,7 @@ export class BoardFit {
     board: Board,
     history: Board[],
     request: FitRequest,
-    stage: z.infer<typeof stageSchema> | null,
+    stage: z.infer<typeof shownStageSchema> | null,
     elements: BoardElements,
     render: Render,
   ): string[] {

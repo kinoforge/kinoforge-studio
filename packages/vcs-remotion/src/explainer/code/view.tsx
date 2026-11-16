@@ -26,6 +26,8 @@ const INK: Record<TokenKind, string> = {
   call: "#61AFEF",
   type: "#E5C07B",
   punct: "#ABB2BF",
+  added: "#98C379",
+  removed: "#E06C75",
 };
 
 /** What is written of a sheet at a time: characters per line, -1 for a line not reached. */
@@ -62,6 +64,33 @@ class Written {
       left -= token.text.length;
     }
     return out;
+  }
+}
+
+class CodeScroll {
+  static readonly LEAD = 0.6;
+  static readonly SAMPLES = 6;
+  static readonly SPAN = 0.3;
+
+  static top(sheet: Sheet, t: number, rows: number): number {
+    const most = sheet.file.lines.length - rows;
+    if (most <= 0) return 0;
+    let sum = 0;
+    for (let k = 0; k < CodeScroll.SAMPLES; k++) {
+      const at = Math.max(sheet.at ?? 0, t - (k * CodeScroll.SPAN) / (CodeScroll.SAMPLES - 1));
+      sum += Math.min(most, Math.max(0, CodeScroll.follow(sheet, at) - rows * CodeScroll.LEAD));
+    }
+    return sum / CodeScroll.SAMPLES;
+  }
+
+  private static follow(sheet: Sheet, t: number): number {
+    const lit = sheet.lit.find((entry) => t >= entry.at && t < entry.until);
+    if (lit) return (lit.lines[0] + (lit.lines.at(-1) as number)) / 2 + 0.5;
+    const chars = Written.chars(sheet, t);
+    const last = chars.reduce((at, count, i) => (count >= 0 ? i : at), -1);
+    if (last < 0) return 0;
+    const line = sheet.file.lines[last];
+    return last + (line.length ? Math.min(1, chars[last] / line.length) : 1);
   }
 }
 
@@ -213,6 +242,7 @@ function SheetView({
   const tokens = useMemo(() => Syntax.lines(sheet.file.lines, sheet.file.lang), [sheet.file]);
   const { layout, box, opacity, scale } = SheetMotion.place(plan, sheet, index, t);
   const { size, bar, gutter, pad } = layout;
+  const rows = CodeLayout.of(sheet.file, plan.area).rows;
   const chars = Written.chars(sheet, t);
   const last = chars.reduce((at, count, i) => (count >= 0 ? i : at), -1);
   const typing = Written.typing(sheet, t);
@@ -220,6 +250,7 @@ function SheetView({
   const shine = lit ? Ease.out(t - lit.at, 0.35) : 0;
   const tone = lit ? palette[MARK_COLORS[lit.tone]] : EDITOR.ink;
   const row = size * CodeLayout.LINE;
+  const top = CodeScroll.top(sheet, t, rows);
   return (
     <div
       style={{
@@ -237,102 +268,117 @@ function SheetView({
       }}
     >
       <TitleBar name={sheet.file.name} lang={sheet.file.lang} bar={bar} />
-      <div style={{ position: "absolute", top: bar + pad * 0.8, left: 0, right: 0 }}>
-        {sheet.file.lines.map((_, i) => {
-          const shown = chars[i];
-          const on = !!lit && lit.lines.includes(i);
-          return (
-            <div
-              key={i}
-              style={{
-                position: "relative",
-                height: row,
-                display: "flex",
-                alignItems: "center",
-                fontFamily: BOARD_MONO,
-                fontSize: size,
-                whiteSpace: "pre",
-                opacity: lit && !on ? 1 - 0.62 * shine : 1,
-              }}
-            >
-              {on ? (
-                <>
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      background: `${tone}2E`,
-                      transformOrigin: "left center",
-                      transform: `scaleX(${shine})`,
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: Math.max(3, size * 0.16),
-                      background: tone,
-                      opacity: shine,
-                    }}
-                  />
-                </>
-              ) : null}
+      <div
+        style={{
+          position: "absolute",
+          top: bar + pad * 0.8,
+          left: 0,
+          right: 0,
+          height: rows * row,
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ position: "absolute", top: -top * row, left: 0, right: 0 }}>
+          {sheet.file.lines.map((_, i) => {
+            const shown = chars[i];
+            const on = !!lit && lit.lines.includes(i);
+            const change = tokens[i]?.[0]?.kind;
+            const tint =
+              change === "added" || change === "removed" ? `${INK[change]}1F` : undefined;
+            return (
               <div
+                key={i}
                 style={{
                   position: "relative",
-                  width: gutter,
-                  flexShrink: 0,
-                  boxSizing: "border-box",
-                  paddingRight: size * 0.9,
-                  textAlign: "right",
-                  color: on ? EDITOR.numberLit : EDITOR.number,
+                  height: row,
+                  display: "flex",
+                  alignItems: "center",
+                  fontFamily: BOARD_MONO,
+                  fontSize: size,
+                  whiteSpace: "pre",
+                  background: tint,
+                  opacity: lit && !on ? 1 - 0.62 * shine : 1,
                 }}
               >
-                {shown >= 0 ? i + 1 : ""}
-              </div>
-              <div style={{ position: "relative" }}>
-                {shown > 0
-                  ? Written.slice(tokens[i], shown).map((token, k) => (
-                      <span
-                        key={k}
-                        style={{
-                          color: INK[token.kind],
-                          fontStyle: token.kind === "comment" ? "italic" : undefined,
-                        }}
-                      >
-                        {token.text}
-                      </span>
-                    ))
-                  : null}
-                {i === last ? (
-                  <span
-                    style={{
-                      color: palette.accent,
-                      opacity: typing || Math.floor(t * 2.2) % 2 === 0 ? 1 : 0,
-                    }}
-                  >
-                    ▍
-                  </span>
+                {on ? (
+                  <>
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        background: `${tone}2E`,
+                        transformOrigin: "left center",
+                        transform: `scaleX(${shine})`,
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: Math.max(3, size * 0.16),
+                        background: tone,
+                        opacity: shine,
+                      }}
+                    />
+                  </>
                 ) : null}
+                <div
+                  style={{
+                    position: "relative",
+                    width: gutter,
+                    flexShrink: 0,
+                    boxSizing: "border-box",
+                    paddingRight: size * 0.9,
+                    textAlign: "right",
+                    color: on ? EDITOR.numberLit : EDITOR.number,
+                  }}
+                >
+                  {shown >= 0 ? i + 1 : ""}
+                </div>
+                <div style={{ position: "relative" }}>
+                  {shown > 0
+                    ? Written.slice(tokens[i], shown).map((token, k) => (
+                        <span
+                          key={k}
+                          style={{
+                            color: INK[token.kind],
+                            fontStyle: token.kind === "comment" ? "italic" : undefined,
+                          }}
+                        >
+                          {token.text}
+                        </span>
+                      ))
+                    : null}
+                  {i === last ? (
+                    <span
+                      style={{
+                        color: palette.accent,
+                        opacity: typing || Math.floor(t * 2.2) % 2 === 0 ? 1 : 0,
+                      }}
+                    >
+                      ▍
+                    </span>
+                  ) : null}
+                </div>
               </div>
+            );
+          })}
+          {lit?.label ? (
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: BadgeRow.of(lit, chars, size, gutter, box.w) * row,
+                height: row,
+              }}
+            >
+              <LitBadge lit={lit} size={size} t={t} color={tone} />
             </div>
-          );
-        })}
-        {lit?.label ? (
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              top: BadgeRow.of(lit, chars, size, gutter, box.w) * row,
-              height: row,
-            }}
-          >
-            <LitBadge lit={lit} size={size} t={t} color={tone} />
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </div>
   );

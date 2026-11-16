@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CODE_EXTENSIONS, CODE_LANGS, SHOWN_FILES } from "./code/spec.ts";
 import { STAGE_REF } from "./fields.ts";
 import { ELEMENT_KINDS, ELEMENT_LIMITS, elementSchema } from "./elements/spec.ts";
 import { BOARD_ICONS, BOARD_ICON_KEYS } from "./icons/index.ts";
@@ -107,7 +108,7 @@ export class Signature {
  *  writer model reads, and the registry of named assets a board or a picker may use. All of
  *  it is derived from spec.ts, icons/ and the mascot rigs, so they never drift apart. */
 export class ExplainerKit {
-  static readonly VERSION = 13;
+  static readonly VERSION = 14;
 
   static schema(): Record<string, unknown> {
     return ExplainerKit.json(boardSchema);
@@ -205,6 +206,7 @@ export class ExplainerKit {
         limits: ELEMENT_LIMITS,
         schema: ExplainerKit.json(elementSchema),
       },
+      code: { langs: CODE_LANGS, extensions: CODE_EXTENSIONS, most: SHOWN_FILES },
       colors: BOARD_COLOR_KEYS,
       assets: ExplainerKit.assets(),
     };

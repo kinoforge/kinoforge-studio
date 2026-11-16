@@ -9,6 +9,8 @@ export const TOKEN_KINDS = [
   "call",
   "type",
   "punct",
+  "added",
+  "removed",
 ] as const;
 export type TokenKind = (typeof TOKEN_KINDS)[number];
 
@@ -23,6 +25,9 @@ interface Grammar {
   block?: boolean;
   caseless?: boolean;
   types?: boolean;
+  keys?: string;
+  dashed?: boolean;
+  sections?: boolean;
 }
 
 const C = { comment: ["//"], block: true, types: true };
@@ -103,6 +108,22 @@ const GRAMMARS: Record<CodeLang, Grammar> = {
       "case cd do done echo elif else esac export fi for function if in local return sudo then while",
   },
   json: { comment: [], words: "true false null" },
+  yaml: {
+    comment: ["#"],
+    keys: ":",
+    dashed: true,
+    words: "true false null yes no on off",
+  },
+  dockerfile: {
+    comment: ["#"],
+    caseless: true,
+    dashed: true,
+    words:
+      "add arg as cmd copy entrypoint env expose from healthcheck label maintainer onbuild run shell stopsignal user volume workdir",
+  },
+  toml: { comment: ["#"], keys: "=", dashed: true, sections: true, words: "true false" },
+  ini: { comment: [";", "#"], keys: "=", dashed: true, sections: true, words: "true false" },
+  diff: { comment: [], words: "" },
   text: { comment: [], words: "" },
 };
 
@@ -115,8 +136,16 @@ export class Syntax {
   static lines(lines: readonly string[], lang: CodeLang): Token[][] {
     const grammar = GRAMMARS[lang] ?? GRAMMARS.text;
     const words = new Set(grammar.words.split(" ").filter(Boolean));
+    if (lang === "diff") return lines.map((line) => [{ kind: Syntax.change(line), text: line }]);
     const state = { block: false };
     return lines.map((line) => Syntax.merge(Syntax.line(line, grammar, words, state)));
+  }
+
+  private static change(line: string): TokenKind {
+    if (/^(\+\+\+|---|@@|diff )/.test(line)) return "comment";
+    if (line.startsWith("+")) return "added";
+    if (line.startsWith("-")) return "removed";
+    return "plain";
   }
 
   private static line(
@@ -126,6 +155,8 @@ export class Syntax {
     state: { block: boolean },
   ): Token[] {
     const out: Token[] = [];
+    if (grammar.sections && /^\s*\[[^\]]*\]\s*$/.test(line) && !state.block)
+      return [{ kind: "keyword", text: line }];
     let i = 0;
     while (i < line.length) {
       if (state.block) {
@@ -167,10 +198,16 @@ export class Syntax {
         i += number[0].length;
         continue;
       }
-      const word = /^[@A-Za-z_$][\w$]*/.exec(rest);
+      const word = (grammar.dashed ? /^[@A-Za-z_$][\w$.-]*/ : /^[@A-Za-z_$][\w$]*/).exec(rest);
       if (word) {
         out.push({
-          kind: Syntax.word(word[0], line.slice(i + word[0].length), grammar, words),
+          kind: Syntax.word(
+            word[0],
+            line.slice(0, i),
+            line.slice(i + word[0].length),
+            grammar,
+            words,
+          ),
           text: word[0],
         });
         i += word[0].length;
@@ -184,10 +221,13 @@ export class Syntax {
 
   private static word(
     word: string,
+    before: string,
     after: string,
     grammar: Grammar,
     words: Set<string>,
   ): TokenKind {
+    const leads = /^\s*(-\s+)?$/.test(before);
+    if (grammar.keys && leads && after.trimStart().startsWith(grammar.keys)) return "call";
     if (word.startsWith("@")) return "keyword";
     if (words.has(grammar.caseless ? word.toLowerCase() : word)) return "keyword";
     if (/^\s*\(/.test(after)) return "call";

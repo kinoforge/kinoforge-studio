@@ -3,7 +3,7 @@ import { CAPTIONED_COMPOSITION_ID } from "./captioned-composition.tsx";
 import { CLIP_COMPOSITION_ID } from "./clip-composition.tsx";
 import { EXPLAINER_COMPOSITION_ID } from "./explainer/composition.tsx";
 import { elementsSchema } from "./explainer/elements/spec.ts";
-import { stageSchema } from "./explainer/stage.ts";
+import { shownStageSchema } from "./explainer/stage.ts";
 import {
   CAPTION_RESERVES,
   boardColorsSchema,
@@ -90,7 +90,7 @@ const explainerInput = z.object({
   colors: boardColorsSchema.nullable().optional(),
   mascot: mascotSchema.nullable().optional(),
   reserve: z.enum(CAPTION_RESERVES).optional(),
-  stage: stageSchema.nullable().optional(),
+  stage: shownStageSchema.nullable().optional(),
   history: z.array(boardSchema).optional(),
   language: z
     .string()
@@ -121,12 +121,15 @@ const skitInput = z.object({
   drawn: z
     .object({
       board: boardSchema,
-      stage: stageSchema.nullable().optional(),
+      stage: shownStageSchema.nullable().optional(),
       history: z.array(boardSchema).optional(),
     })
     .nullable()
     .optional(),
-  next: z.object({ draw: z.enum(DRAWS).optional() }).nullable().optional(),
+  next: z
+    .object({ draw: z.enum(DRAWS).optional() })
+    .nullable()
+    .optional(),
 });
 
 export type EditDoc =

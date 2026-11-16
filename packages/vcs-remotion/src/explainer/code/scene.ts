@@ -15,12 +15,13 @@ export interface CodePlan {
 /** An editor's size for one file: sized to all its lines, so it holds still while they type. */
 export class CodeLayout {
   static readonly LINE = 1.55;
+  static readonly ROWS = 16;
 
   static of(file: CodeFile, area: Box) {
-    const rows = Math.max(4, file.lines.length);
+    const rows = Math.max(4, Math.min(CodeLayout.ROWS, file.lines.length));
     const longest = Math.max(24, ...file.lines.map((line) => line.length));
-    const digits = String(rows).length;
-    const across = FitText.MONO * (longest + digits + 1.5) + 2;
+    const digits = String(Math.max(rows, file.lines.length)).length;
+    const across = FitText.MONO * (longest + digits + 2.5) + 2;
     const down = 2.2 + rows * CodeLayout.LINE + 1.6;
     const size = Math.min(area.w / across, area.h / down, area.w * 0.05);
     const h = size * down;
@@ -29,8 +30,9 @@ export class CodeLayout {
       box: { x: area.x + (area.w - w) / 2, y: area.y + (area.h - h) / 2, w, h },
       size,
       bar: size * 2.2,
-      gutter: size * FitText.MONO * (digits + 1.5),
+      gutter: size * FitText.MONO * (digits + 2.5),
       pad: size,
+      rows,
     };
   }
 }

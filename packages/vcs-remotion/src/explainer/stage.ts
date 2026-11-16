@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { codeFileSchema } from "./code/spec.ts";
+import { SHOWN_FILES, codeFileSchema, shownFileSchema } from "./code/spec.ts";
 import { stageNodeSchema } from "./diagram/spec.ts";
 import { picture } from "./fields.ts";
 import { stagePlaceSchema } from "./map/spec.ts";
@@ -19,3 +19,7 @@ export const stageSchema = z.object({
   icons: z.array(picture).max(32).optional(),
 });
 export type Stage = z.infer<typeof stageSchema>;
+
+export const shownStageSchema = stageSchema.extend({
+  files: z.array(shownFileSchema).max(SHOWN_FILES.files).optional(),
+});

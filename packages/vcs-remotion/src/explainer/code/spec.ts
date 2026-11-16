@@ -18,9 +18,53 @@ export const CODE_LANGS = [
   "sql",
   "bash",
   "json",
+  "yaml",
+  "dockerfile",
+  "toml",
+  "ini",
+  "diff",
   "text",
 ] as const;
 export type CodeLang = (typeof CODE_LANGS)[number];
+
+export const CODE_EXTENSIONS: Record<string, CodeLang> = {
+  ts: "typescript",
+  tsx: "typescript",
+  js: "javascript",
+  jsx: "javascript",
+  mjs: "javascript",
+  py: "python",
+  java: "java",
+  cs: "csharp",
+  go: "go",
+  rs: "rust",
+  kt: "kotlin",
+  swift: "swift",
+  cpp: "cpp",
+  cc: "cpp",
+  h: "cpp",
+  hpp: "cpp",
+  php: "php",
+  rb: "ruby",
+  sql: "sql",
+  sh: "bash",
+  bash: "bash",
+  json: "json",
+  yml: "yaml",
+  yaml: "yaml",
+  dockerfile: "dockerfile",
+  containerfile: "dockerfile",
+  toml: "toml",
+  ini: "ini",
+  cfg: "ini",
+  conf: "ini",
+  env: "ini",
+  properties: "ini",
+  diff: "diff",
+  patch: "diff",
+  txt: "text",
+  md: "text",
+};
 
 const fileId = stageRef("files", "a file id from the STAGE");
 const lineText = text(40).describe("text copied from one line of the file");
@@ -50,3 +94,9 @@ export const codeFileSchema = z.object({
     .describe("the code, one line each, indented with spaces"),
 });
 export type CodeFile = z.infer<typeof codeFileSchema>;
+
+export const SHOWN_FILES = { files: 8, lines: 400, chars: 200 } as const;
+
+export const shownFileSchema = codeFileSchema.extend({
+  lines: z.array(z.string().max(SHOWN_FILES.chars)).min(1).max(SHOWN_FILES.lines),
+});
