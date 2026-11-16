@@ -14,6 +14,7 @@ import {
   EditDocs,
   ExplainerKit,
   STORY_COMPOSITION_ID,
+  SkitKit,
   type StoryVideoProps,
   fitRequestSchema,
 } from "@vcs/remotion";
@@ -173,6 +174,11 @@ app.get("/health", (_req: Request, res: Response) => {
 const EXPLAINER_KIT = ExplainerKit.describe();
 app.get("/v1/kits/explainer", (_req: Request, res: Response) => {
   res.json(EXPLAINER_KIT);
+});
+
+const SKIT_KIT = SkitKit.describe();
+app.get("/v1/kits/skit", (_req: Request, res: Response) => {
+  res.json(SKIT_KIT);
 });
 
 app.post("/v1/kits/explainer/fit", (req: Request, res: Response) => {

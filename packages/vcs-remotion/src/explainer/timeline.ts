@@ -31,6 +31,12 @@ export class BoardCues {
     return BoardCues.fill(found, seconds);
   }
 
+  static at(words: readonly CaptionWord[], cue: string): number {
+    const tokens = words.map((word) => BoardCues.normal(word.word));
+    const at = BoardCues.find(tokens, BoardCues.tokens(cue), 0);
+    return at < 0 ? -1 : Math.max(0, words[at].start - BoardCues.LEAD);
+  }
+
   static tokens(text: string): string[] {
     return text
       .split(/\s+/)

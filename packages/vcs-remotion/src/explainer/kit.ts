@@ -15,7 +15,7 @@ import {
   boardSchema,
 } from "./spec.ts";
 import { type Stage, stageSchema } from "./stage.ts";
-import { BOARD_THEMES, BoardThemes } from "./theme.ts";
+import { BOARD_COLOR_KEYS, BoardThemes } from "./theme.ts";
 
 export const KIT_ASSET_KINDS = ["icon", "mascot", "hat", "theme"] as const;
 export type KitAssetKind = (typeof KIT_ASSET_KINDS)[number];
@@ -70,7 +70,7 @@ const SURFACE_GUIDES: Record<Surface, { part: keyof Stage; about: string }> = {
 };
 
 /** Field signatures for the writer, read off each piece's JSON schema. */
-class Signature {
+export class Signature {
   static of(schema: JsonSchema): string {
     if (schema.enum || schema.pattern) return schema.description ?? schema.enum?.join("|") ?? "id";
     switch (schema.type) {
@@ -107,7 +107,7 @@ class Signature {
  *  writer model reads, and the registry of named assets a board or a picker may use. All of
  *  it is derived from spec.ts, icons/ and the mascot rigs, so they never drift apart. */
 export class ExplainerKit {
-  static readonly VERSION = 12;
+  static readonly VERSION = 13;
 
   static schema(): Record<string, unknown> {
     return ExplainerKit.json(boardSchema);
@@ -184,16 +184,7 @@ export class ExplainerKit {
         tags: rig.tags,
       })),
       ...MASCOT_HATS.map((key) => ({ key, kind: "hat" as const, name: named(key), tags: [] })),
-      ...BOARD_THEMES.map((key) => {
-        const { background, ink, accent, light } = BoardThemes.of(key);
-        return {
-          key,
-          kind: "theme" as const,
-          name: named(key),
-          tags: [light ? "light" : "dark"],
-          swatch: { background, ink, accent },
-        };
-      }),
+      ...BoardThemes.swatches(),
     ];
   }
 
@@ -214,6 +205,7 @@ export class ExplainerKit {
         limits: ELEMENT_LIMITS,
         schema: ExplainerKit.json(elementSchema),
       },
+      colors: BOARD_COLOR_KEYS,
       assets: ExplainerKit.assets(),
     };
   }

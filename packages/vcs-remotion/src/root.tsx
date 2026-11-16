@@ -18,6 +18,12 @@ import {
   explainerCalcMeta,
 } from "./explainer/composition.tsx";
 import {
+  DEFAULT_SKIT_PROPS,
+  SKIT_COMPOSITION_ID,
+  SkitScene,
+  skitCalcMeta,
+} from "./skit/composition.tsx";
+import {
   DEFAULT_STORY_PROPS,
   STORY_COMPOSITION_ID,
   StoryVideo,
@@ -66,6 +72,16 @@ export function RemotionRoot() {
         height={1920}
         defaultProps={DEFAULT_EXPLAINER_PROPS}
         calculateMetadata={explainerCalcMeta}
+      />
+      <Composition
+        id={SKIT_COMPOSITION_ID}
+        component={SkitScene}
+        durationInFrames={120}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={DEFAULT_SKIT_PROPS}
+        calculateMetadata={skitCalcMeta}
       />
     </>
   );

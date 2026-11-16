@@ -72,5 +72,14 @@ export {
   mascotSchema,
 } from "./spec.ts";
 export { type Stage, stageSchema } from "./stage.ts";
-export { BOARD_THEMES, type BoardPalette, type BoardTheme, BoardThemes } from "./theme.ts";
+export {
+  BOARD_COLOR_KEYS,
+  BOARD_GLOWS,
+  BOARD_THEMES,
+  type BoardColors,
+  type BoardGlow,
+  type BoardPalette,
+  type BoardTheme,
+  BoardThemes,
+} from "./theme.ts";
 export { BoardCues, BoardLayout, BoardStack, SurfaceSplit } from "./timeline.ts";

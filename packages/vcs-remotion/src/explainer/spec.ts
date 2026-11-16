@@ -14,7 +14,7 @@ import {
   signPiece,
   signalPiece,
 } from "./road/spec.ts";
-import { BOARD_THEMES, PAINT_NAMES } from "./theme.ts";
+import { BOARD_COLOR_KEYS, BOARD_GLOWS, BOARD_THEMES, PAINT_NAMES } from "./theme.ts";
 
 export const MOODS = ["happy", "thinking", "surprised", "sad", "excited"] as const;
 export const MASCOT_RIGS = ["pip", "bolt"] as const;
@@ -515,3 +515,8 @@ export const mascotSchema = z.object({ rig: z.enum(MASCOT_RIGS), hat: z.enum(MAS
 export type Mascot = z.infer<typeof mascotSchema>;
 
 export const boardThemeSchema = z.enum(BOARD_THEMES);
+export const boardColorsSchema = z.partialRecord(
+  z.enum(BOARD_COLOR_KEYS),
+  z.string().regex(/^#[0-9a-fA-F]{6}$/),
+);
+export const boardGlowSchema = z.enum(BOARD_GLOWS);

@@ -17,7 +17,7 @@ import { RoadScene } from "./road/scene.ts";
 import { RoadView } from "./road/view.tsx";
 import type { Beat, Board, CaptionReserve, Mascot } from "./spec.ts";
 import type { Stage } from "./stage.ts";
-import { BOARD_FONT, type BoardPalette, type BoardTheme, BoardThemes } from "./theme.ts";
+import { BOARD_FONT, type BoardColors, type BoardPalette, type BoardTheme, BoardThemes } from "./theme.ts";
 import { BoardCues, BoardLayout, BoardStack, type Box } from "./timeline.ts";
 
 export const EXPLAINER_COMPOSITION_ID = "ExplainerScene";
@@ -30,6 +30,7 @@ export type ExplainerProps = {
   board: Board;
   words: CaptionWord[];
   theme?: BoardTheme;
+  colors?: BoardColors | null;
   mascot?: Mascot | null;
   reserve?: CaptionReserve;
   /** The video's diagram nodes, code files, road side and map places, and the boards of the
@@ -300,13 +301,14 @@ function BoardScene({
   board,
   words,
   theme,
+  colors,
   mascot,
   reserve = "bottom",
   stage,
   history = [],
   t,
 }: ExplainerProps & { t: number }) {
-  const palette = BoardThemes.of(theme);
+  const palette = BoardThemes.of(theme, colors);
   const beats = board.beats;
   const starts = useMemo(() => BoardCues.resolve(beats, words, seconds), [beats, words, seconds]);
   const layout = BoardLayout.of(width, height, reserve, !!mascot);

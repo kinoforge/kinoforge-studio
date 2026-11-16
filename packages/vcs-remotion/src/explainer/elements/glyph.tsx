@@ -47,22 +47,11 @@ export class BoardGlyphs {
   }
 }
 
-function ElementShapeView({
-  element,
-  size,
-  color,
-}: {
-  element: BoardElement;
-  size: number;
-  color: string;
-}) {
-  const { w, h } = element.shape.box;
+export function ElementPaths({ element, color }: { element: BoardElement; color: string }) {
   const paint = (value: string | undefined, fallback: string) =>
     value === "ink" ? color : (value ?? fallback);
-  const logo = element.kind === "logo";
-  const inner = logo ? size * 0.78 : size;
-  const svg = (
-    <svg width={inner} height={inner} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet">
+  return (
+    <>
       {element.shape.parts.map((part, i) => (
         <path
           key={i}
@@ -76,6 +65,25 @@ function ElementShapeView({
           fillRule={part.evenodd ? "evenodd" : undefined}
         />
       ))}
+    </>
+  );
+}
+
+function ElementShapeView({
+  element,
+  size,
+  color,
+}: {
+  element: BoardElement;
+  size: number;
+  color: string;
+}) {
+  const { w, h } = element.shape.box;
+  const logo = element.kind === "logo";
+  const inner = logo ? size * 0.78 : size;
+  const svg = (
+    <svg width={inner} height={inner} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet">
+      <ElementPaths element={element} color={color} />
     </svg>
   );
   if (!logo) return svg;

@@ -4,7 +4,16 @@ import { CLIP_COMPOSITION_ID } from "./clip-composition.tsx";
 import { EXPLAINER_COMPOSITION_ID } from "./explainer/composition.tsx";
 import { elementsSchema } from "./explainer/elements/spec.ts";
 import { stageSchema } from "./explainer/stage.ts";
-import { CAPTION_RESERVES, boardSchema, boardThemeSchema, mascotSchema } from "./explainer/spec.ts";
+import {
+  CAPTION_RESERVES,
+  boardColorsSchema,
+  boardGlowSchema,
+  boardSchema,
+  boardThemeSchema,
+  mascotSchema,
+} from "./explainer/spec.ts";
+import { SKIT_COMPOSITION_ID } from "./skit/composition.tsx";
+import { DRAWS, lineSchema, setSchema } from "./skit/spec.ts";
 import { CAPTION_POSITIONS, STORY_COMPOSITION_ID } from "./story-composition.tsx";
 
 const caption = z.object({ start: z.number(), end: z.number(), text: z.string() });
@@ -78,6 +87,7 @@ const explainerInput = z.object({
   board: boardSchema,
   words: z.array(captionWord),
   theme: boardThemeSchema.optional(),
+  colors: boardColorsSchema.nullable().optional(),
   mascot: mascotSchema.nullable().optional(),
   reserve: z.enum(CAPTION_RESERVES).optional(),
   stage: stageSchema.nullable().optional(),
@@ -89,6 +99,36 @@ const explainerInput = z.object({
   elements: elementsSchema.optional(),
 });
 
+const skitInput = z.object({
+  fps: z.number().positive(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  seconds: z.number().positive(),
+  set: setSchema,
+  line: lineSchema,
+  text: z.string().max(600),
+  words: z.array(captionWord),
+  history: z.array(z.object({ line: lineSchema, text: z.string().max(600) })).optional(),
+  theme: boardThemeSchema.optional(),
+  colors: boardColorsSchema.nullable().optional(),
+  glow: boardGlowSchema.optional(),
+  reserve: z.enum(CAPTION_RESERVES).optional(),
+  language: z
+    .string()
+    .regex(/^[a-z]{2}$/)
+    .optional(),
+  elements: elementsSchema.optional(),
+  drawn: z
+    .object({
+      board: boardSchema,
+      stage: stageSchema.nullable().optional(),
+      history: z.array(boardSchema).optional(),
+    })
+    .nullable()
+    .optional(),
+  next: z.object({ draw: z.enum(DRAWS).optional() }).nullable().optional(),
+});
+
 export type EditDoc =
   | { compositionId: typeof CLIP_COMPOSITION_ID; inputProps: z.infer<typeof clipInput> }
   | { compositionId: typeof CAPTIONED_COMPOSITION_ID; inputProps: z.infer<typeof captionedInput> }
@@ -96,7 +136,8 @@ export type EditDoc =
   | {
       compositionId: typeof EXPLAINER_COMPOSITION_ID;
       inputProps: z.infer<typeof explainerInput>;
-    };
+    }
+  | { compositionId: typeof SKIT_COMPOSITION_ID; inputProps: z.infer<typeof skitInput> };
 
 export class EditDocs {
   private static readonly schemas = {
@@ -104,6 +145,7 @@ export class EditDocs {
     [CAPTIONED_COMPOSITION_ID]: captionedInput,
     [STORY_COMPOSITION_ID]: storyInput,
     [EXPLAINER_COMPOSITION_ID]: explainerInput,
+    [SKIT_COMPOSITION_ID]: skitInput,
   } as const;
 
   static parse(compositionId: string, inputProps: unknown): EditDoc {

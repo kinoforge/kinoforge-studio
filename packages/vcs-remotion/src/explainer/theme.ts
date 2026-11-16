@@ -1,4 +1,13 @@
-export const BOARD_THEMES = ["paper", "chalk", "night", "blueprint"] as const;
+export const BOARD_THEMES = [
+  "paper",
+  "chalk",
+  "night",
+  "blueprint",
+  "sunset",
+  "mint",
+  "neon",
+  "pastel",
+] as const;
 export type BoardTheme = (typeof BOARD_THEMES)[number];
 
 export const BOARD_PATTERNS = ["fibers", "dust", "dots", "grid"] as const;
@@ -19,7 +28,15 @@ export interface BoardPalette {
   shadow: string;
   tape: boolean;
   light: boolean;
+  glow: number;
 }
+
+export const BOARD_COLOR_KEYS = ["background", "ink", "muted", "card", "cardInk", "accent", "accent2"] as const;
+export type BoardColorKey = (typeof BOARD_COLOR_KEYS)[number];
+export type BoardColors = Partial<Record<BoardColorKey, string>>;
+
+export const BOARD_GLOWS = ["off", "soft", "normal", "strong"] as const;
+export type BoardGlow = (typeof BOARD_GLOWS)[number];
 
 export const BOARD_FONT = '"Archivo", "Inter", "DejaVu Sans", "Noto Sans", sans-serif';
 export const BOARD_MONO = '"DejaVu Sans Mono", "Noto Sans Mono", ui-monospace, monospace';
@@ -40,6 +57,7 @@ const PALETTES: Record<BoardTheme, BoardPalette> = {
     shadow: "rgba(70, 45, 20, 0.28)",
     tape: true,
     light: true,
+    glow: 0.8,
   },
   chalk: {
     background: "#1E3A2D",
@@ -56,6 +74,7 @@ const PALETTES: Record<BoardTheme, BoardPalette> = {
     shadow: "rgba(0, 0, 0, 0.35)",
     tape: false,
     light: false,
+    glow: 1,
   },
   night: {
     background: "#0E1120",
@@ -72,6 +91,7 @@ const PALETTES: Record<BoardTheme, BoardPalette> = {
     shadow: "rgba(0, 0, 0, 0.5)",
     tape: false,
     light: false,
+    glow: 1,
   },
   blueprint: {
     background: "#123A6B",
@@ -88,12 +108,147 @@ const PALETTES: Record<BoardTheme, BoardPalette> = {
     shadow: "rgba(0, 10, 30, 0.45)",
     tape: false,
     light: false,
+    glow: 1,
+  },
+  sunset: {
+    background: "#2A1426",
+    pattern: "dots",
+    ink: "#FFF1E8",
+    muted: "#D8A7A0",
+    card: "#3E1D36",
+    cardInk: "#FFF1E8",
+    accent: "#FF7A59",
+    accent2: "#FFC857",
+    good: "#7BD389",
+    bad: "#FF5D73",
+    warn: "#FFC857",
+    shadow: "rgba(20, 0, 12, 0.5)",
+    tape: false,
+    light: false,
+    glow: 1.1,
+  },
+  mint: {
+    background: "#E4F3EC",
+    pattern: "dots",
+    ink: "#14302A",
+    muted: "#55736A",
+    card: "#FFFFFF",
+    cardInk: "#14302A",
+    accent: "#0F9D7A",
+    accent2: "#3A6FF7",
+    good: "#1E9E5A",
+    bad: "#D64550",
+    warn: "#D99A00",
+    shadow: "rgba(10, 60, 40, 0.22)",
+    tape: false,
+    light: true,
+    glow: 0.7,
+  },
+  neon: {
+    background: "#07060F",
+    pattern: "grid",
+    ink: "#F5F3FF",
+    muted: "#8E8AB5",
+    card: "#141127",
+    cardInk: "#F5F3FF",
+    accent: "#FF2BD6",
+    accent2: "#00F0FF",
+    good: "#39FF88",
+    bad: "#FF4D6D",
+    warn: "#FFE14D",
+    shadow: "rgba(0, 0, 0, 0.6)",
+    tape: false,
+    light: false,
+    glow: 1.6,
+  },
+  pastel: {
+    background: "#F6EDF5",
+    pattern: "fibers",
+    ink: "#2D2340",
+    muted: "#7D6E91",
+    card: "#FFFFFF",
+    cardInk: "#2D2340",
+    accent: "#A66CFF",
+    accent2: "#3FA7D6",
+    good: "#3FAE72",
+    bad: "#E8506E",
+    warn: "#E9A23B",
+    shadow: "rgba(80, 40, 90, 0.2)",
+    tape: true,
+    light: true,
+    glow: 0.7,
   },
 };
 
 export class BoardThemes {
-  static of(theme: BoardTheme | undefined): BoardPalette {
-    return PALETTES[theme ?? "paper"] ?? PALETTES.paper;
+  static readonly GLOWS: Record<BoardGlow, number> = { off: 0, soft: 0.5, normal: 1, strong: 1.8 };
+  static readonly DARK_INK = "#1F1B16";
+  static readonly LIGHT_INK = "#F3F4F8";
+
+  static of(theme: BoardTheme | undefined, colors?: BoardColors | null, glow?: BoardGlow): BoardPalette {
+    const base = PALETTES[theme ?? "paper"] ?? PALETTES.paper;
+    const own = colors ?? {};
+    const background = own.background ?? base.background;
+    const light = own.background ? BoardThemes.bright(background) : base.light;
+    const flipped = light !== base.light;
+    const ink = own.ink ?? (flipped ? BoardThemes.readable(background) : base.ink);
+    const card = own.card ?? (flipped ? BoardThemes.mix(background, "#FFFFFF", light ? 0.65 : 0.08) : base.card);
+    const cardInk =
+      own.cardInk ??
+      (BoardThemes.bright(card) === BoardThemes.bright(base.card) ? base.cardInk : BoardThemes.readable(card));
+    return {
+      ...base,
+      background,
+      light,
+      ink,
+      card,
+      cardInk,
+      muted: own.muted ?? (flipped || own.ink ? BoardThemes.mix(ink, background, 0.45) : base.muted),
+      accent: own.accent ?? base.accent,
+      accent2: own.accent2 ?? base.accent2,
+      shadow: flipped ? (light ? "rgba(40, 30, 20, 0.25)" : "rgba(0, 0, 0, 0.5)") : base.shadow,
+      tape: light && base.tape,
+      glow: base.glow * BoardThemes.GLOWS[glow ?? "normal"],
+    };
+  }
+
+  static swatches() {
+    return BOARD_THEMES.map((key) => {
+      const { background, ink, accent, light } = BoardThemes.of(key);
+      return {
+        key,
+        kind: "theme" as const,
+        name: key.charAt(0).toUpperCase() + key.slice(1),
+        tags: [light ? "light" : "dark"],
+        swatch: { background, ink, accent },
+      };
+    });
+  }
+
+  static rgb(hex: string): [number, number, number] {
+    const n = Number.parseInt(hex.slice(1, 7), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  static bright(hex: string): boolean {
+    const [r, g, b] = BoardThemes.rgb(hex).map((c) => {
+      const v = c / 255;
+      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.32;
+  }
+
+  static readable(hex: string): string {
+    return BoardThemes.bright(hex) ? BoardThemes.DARK_INK : BoardThemes.LIGHT_INK;
+  }
+
+  static mix(a: string, b: string, share: number): string {
+    const from = BoardThemes.rgb(a);
+    const to = BoardThemes.rgb(b);
+    return `#${from
+      .map((c, i) => Math.round(c + (to[i] - c) * share).toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase()}`;
   }
 }
 
