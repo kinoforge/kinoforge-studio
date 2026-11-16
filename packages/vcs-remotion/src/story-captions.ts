@@ -1,4 +1,5 @@
 import type { CaptionWord } from "./captions.ts";
+import { GlyphWidths } from "./explainer/metrics.ts";
 
 /** Story caption layout shared by every renderer (the Remotion composition and the ffmpeg
  *  lane's ASS subtitles), so line breaks, size and safe margins match across both. */
@@ -17,25 +18,40 @@ export const DEFAULT_CAPTION_COLOR = "#FFD84D";
 export type CaptionLine = { words: CaptionWord[]; start: number; end: number };
 
 export class CaptionLines {
-  static build(words: CaptionWord[], maxChars: number): CaptionLine[] {
+  static readonly ENDS = /[.!?…。！？]["'”’)]*$/;
+
+  static build(words: CaptionWord[], lineEms: number): CaptionLine[] {
     const lines: CaptionLine[] = [];
+    const space = CaptionLines.ems(" ");
     let current: CaptionWord[] = [];
     let length = 0;
     for (const entry of words) {
       const word = (entry.word || "").trim();
       if (!word) continue;
-      const candidate = current.length ? length + 1 + word.length : word.length;
-      if (current.length && candidate > maxChars) {
+      const size = CaptionLines.ems(word);
+      const candidate = current.length ? length + space + size : size;
+      if (current.length && candidate > lineEms) {
         lines.push(CaptionLines.line(current));
         current = [{ ...entry, word }];
-        length = word.length;
+        length = size;
       } else {
         current.push({ ...entry, word });
         length = candidate;
       }
+      if (CaptionLines.ENDS.test(word)) {
+        lines.push(CaptionLines.line(current));
+        current = [];
+        length = 0;
+      }
     }
     if (current.length) lines.push(CaptionLines.line(current));
     return lines;
+  }
+
+  static ems(text: string): number {
+    let total = 0;
+    for (const char of text) total += GlyphWidths.of(char.codePointAt(0) ?? 0, "sans");
+    return total;
   }
 
   static activeAt(lines: CaptionLine[], seconds: number): CaptionLine | undefined {
@@ -75,12 +91,13 @@ export class CaptionLayout {
   static of(width: number, height: number, scale: number, position: CaptionPosition) {
     const fontSize = Math.round(height * 0.052 * (scale || 1));
     const inset = CaptionSafeArea.insets(position, width, height);
-    const lineWidth = width - inset.left - inset.right;
+    const stroke = Math.max(1, Math.round(fontSize * 0.03));
+    const lineWidth = width - inset.left - inset.right - stroke * 4;
     return {
       fontSize,
       inset,
-      maxChars: Math.max(8, Math.floor(lineWidth / (fontSize * 0.52))),
-      stroke: Math.max(1, Math.round(fontSize * 0.03)),
+      lineEms: Math.max(4, lineWidth / fontSize),
+      stroke,
     };
   }
 }

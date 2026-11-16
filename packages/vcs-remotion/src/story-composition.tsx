@@ -120,8 +120,8 @@ function SceneCaptions({
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
   const seconds = frame / fps;
-  const { fontSize, inset, maxChars, stroke } = CaptionLayout.of(width, height, scale, position);
-  const lines = useMemo(() => CaptionLines.build(words, maxChars), [words, maxChars]);
+  const { fontSize, inset, lineEms, stroke } = CaptionLayout.of(width, height, scale, position);
+  const lines = useMemo(() => CaptionLines.build(words, lineEms), [words, lineEms]);
   const active = CaptionLines.activeAt(lines, seconds);
   if (!active) return null;
 

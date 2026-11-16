@@ -31,10 +31,12 @@ const UNSPOKEN: AssColour = { bgr: "FFFFFF", alpha: "73" }; // white at 55%, as 
  * and dims the rest.
  */
 export class AssCaptions {
+  static readonly DEJAVU_SIZE_PER_EM = 1.164;
+
   static build(words: CaptionWord[], sceneSeconds: number, style: CaptionStyle): string | null {
     const position = style.position ?? "bottom";
     const layout = CaptionLayout.of(style.width, style.height, style.scale ?? 1, position);
-    const lines = CaptionLines.build(words, layout.maxChars);
+    const lines = CaptionLines.build(words, layout.lineEms * AssCaptions.DEJAVU_SIZE_PER_EM);
     if (!lines.length) return null;
     const color = AssCaptions.colour(style.color || DEFAULT_CAPTION_COLOR);
     const events = lines.flatMap((line, index) => {

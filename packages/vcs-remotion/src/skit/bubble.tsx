@@ -32,16 +32,21 @@ export class BubbleShape {
     const tall = Math.max(max * 2, spot.y - room.top - tail - max * BubbleShape.GAP);
     const inner = { w: room.width - pad * 2, h: tall - pad * 2 - max * 0.9 };
     const font = Math.max(frame * BubbleShape.LEAST, FitText.size(text, inner, max, BubbleShape.LINES));
-    const lines = FitText.lines(text, inner.w, font);
+    const border = BubbleShape.border(font);
     const widest = Math.max(
       ...text.split(/\s+/).map((word) => FitText.width(word, font)),
-      FitText.width(text, font) / lines,
+      FitText.width(text, font) / FitText.lines(text, inner.w, font),
     );
-    const w = Math.min(room.width, Math.max(widest * 1.08 + pad * 2, room.width * 0.45));
-    const h = lines * font * FitText.LEADING + pad * 2;
+    const w = Math.min(room.width, Math.max(widest * 1.08 + (pad + border) * 2, room.width * 0.45));
+    const lines = FitText.lines(text, w - (pad + border) * 2, font);
+    const h = lines * font * FitText.LEADING + (pad + border) * 2;
     const x = Math.min(room.right - w, Math.max(room.left, spot.x - w / 2));
     const y = spot.y - tail - h - max * BubbleShape.GAP * 0.3;
     return { x, y, w, h, font, pad, tail };
+  }
+
+  static border(font: number): number {
+    return Math.max(3, font * 0.1);
   }
 
   static need(text: string, width: number, frame: number): number {
@@ -163,7 +168,7 @@ export function SpeechBubble({
           d={`M ${originX - shape.tail * 0.55} ${shape.h - 2} L ${originX + (spot.x - tailX) * 0.3} ${shape.h + shape.tail} L ${originX + shape.tail * 0.55} ${shape.h - 2} Z`}
           fill={palette.card}
           stroke={color}
-          strokeWidth={Math.max(3, shape.font * 0.1)}
+          strokeWidth={BubbleShape.border(shape.font)}
           strokeLinejoin="round"
           style={{ filter: glow ? `drop-shadow(0 0 ${glow}px ${color})` : undefined }}
         />
@@ -173,7 +178,7 @@ export function SpeechBubble({
           position: "absolute",
           inset: 0,
           background: palette.card,
-          border: `${Math.max(3, shape.font * 0.1)}px solid ${color}`,
+          border: `${BubbleShape.border(shape.font)}px solid ${color}`,
           borderRadius: Math.min(shape.h / 2, shape.font * 1.6),
           boxShadow: glow ? `0 0 ${glow}px ${color}, 0 0 ${glow * 2.2}px ${color}55` : "none",
           boxSizing: "border-box",
