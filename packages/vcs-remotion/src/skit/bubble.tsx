@@ -23,6 +23,7 @@ export class BubbleShape {
   static readonly TAIL = 1.1;
   static readonly POP = 0.3;
   static readonly LEAVE = 0.28;
+  static readonly PHRASE = 90;
 
   static size(text: string, room: BubbleRoom, spot: BubbleSpot, frame: number) {
     const max = frame * 0.044;
@@ -46,8 +47,45 @@ export class BubbleShape {
   static need(text: string, width: number, frame: number): number {
     const max = frame * 0.044;
     const room = { left: 0, right: width, top: 0, width };
-    const shape = BubbleShape.size(text, room, { x: width / 2, y: frame * 10 }, frame);
+    const shape = BubbleShape.size(BubbleShape.longest(text), room, { x: width / 2, y: frame * 10 }, frame);
     return shape.h + shape.tail + max * (0.9 + BubbleShape.GAP);
+  }
+
+  static phrases(text: string): string[][] {
+    const tokens = text.split(/\s+/).filter(Boolean);
+    if (text.length <= BubbleShape.PHRASE) return [tokens];
+    const out: string[][] = [];
+    let current: string[] = [];
+    let size = 0;
+    for (const token of tokens) {
+      if (current.length && size + token.length + 1 > BubbleShape.PHRASE) {
+        out.push(current);
+        current = [];
+        size = 0;
+      }
+      size += token.length + (current.length ? 1 : 0);
+      current.push(token);
+      const stop = /[.!?;:]["')]*$/.test(token) ? 0.45 : /,["')]*$/.test(token) ? 0.7 : 2;
+      if (size > BubbleShape.PHRASE * stop) {
+        out.push(current);
+        current = [];
+        size = 0;
+      }
+    }
+    if (current.length) out.push(current);
+    return out;
+  }
+
+  static longest(text: string): string {
+    return BubbleShape.phrases(text)
+      .map((phrase) => phrase.join(" "))
+      .reduce((a, b) => (b.length > a.length ? b : a), "");
+  }
+
+  static reached(words: readonly CaptionWord[], count: number, t: number): number {
+    if (!words.length || !count) return 0;
+    const said = words.filter((word) => t >= word.start).length;
+    return Math.max(0, Math.min(count - 1, Math.floor(((said - 1) * count) / words.length)));
   }
 
   static spoken(words: readonly CaptionWord[], count: number, t: number): number {
@@ -84,12 +122,21 @@ export function SpeechBubble({
   palette: BoardPalette;
 }) {
   if (t < from || !text.trim()) return null;
-  const shape = BubbleShape.size(text, room, spot, frame);
+  const shape = BubbleShape.size(BubbleShape.longest(text), room, spot, frame);
   const pop = Ease.pop(t, BubbleShape.POP, from);
   const gone = leave >= 0 ? Ease.out(t, BubbleShape.LEAVE, leave) : 0;
   const scale = Math.max(0.01, pop * (1 - gone * 0.15));
-  const tokens = text.split(/\s+/).filter(Boolean);
-  const current = leave >= 0 ? -1 : BubbleShape.spoken(words, tokens.length, t);
+  const phrases = BubbleShape.phrases(text);
+  const count = phrases.reduce((sum, phrase) => sum + phrase.length, 0);
+  const reached = leave >= 0 ? count - 1 : BubbleShape.reached(words, count, t);
+  let start = 0;
+  let at = 0;
+  while (at < phrases.length - 1 && reached >= start + phrases[at].length) {
+    start += phrases[at].length;
+    at += 1;
+  }
+  const tokens = phrases[at];
+  const current = leave >= 0 ? -1 : BubbleShape.spoken(words, count, t) - start;
   const glow = shape.font * 0.45 * palette.glow;
   const tailX = Math.min(shape.x + shape.w - shape.font, Math.max(shape.x + shape.font, spot.x));
   const chip = shape.font * 0.62;

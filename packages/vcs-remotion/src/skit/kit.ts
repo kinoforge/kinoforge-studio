@@ -12,6 +12,7 @@ import {
   HATS,
   HOLDS,
   POSES,
+  PRESENTERS,
   type Pose,
   REACTIONS,
   type Reaction,
@@ -55,7 +56,7 @@ const REACTION_ABOUT: Record<Reaction, string> = {
 };
 
 export class SkitKit {
-  static readonly VERSION = 1;
+  static readonly VERSION = 2;
 
   static setCatalog(): string {
     const fields = (SkitKit.json(setSchema).properties ?? {}) as Record<string, JsonSchema>;
@@ -121,6 +122,8 @@ export class SkitKit {
       voices: VOICE_KINDS,
       backdrops: BACKDROPS,
       draws: DRAWS,
+      presenters: PRESENTERS,
+      pictures: { hat: HATS, head: [], holds: HOLDS, kind: SET_PROPS, icon: [] },
       colors: BOARD_COLOR_KEYS,
       glows: BOARD_GLOWS,
       set: { schema: SkitKit.json(setSchema), catalog: SkitKit.setCatalog() },

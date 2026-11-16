@@ -73,6 +73,7 @@ export const BACKDROPS = [
 ] as const;
 export const CARD_KINDS = ["ticket", "checklist", "score"] as const;
 export const DRAWS = ["beside", "full"] as const;
+export const PRESENTERS = ["stick", "cast"] as const;
 export const POSES = [
   "idle",
   "talk",
