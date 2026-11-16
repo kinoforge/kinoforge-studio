@@ -28,7 +28,8 @@ class BackdropPlan {
       seed = (seed * 9301 + 49297) % 233280;
       return seed / 233280;
     };
-    for (let i = 0; i < count; i++) out.push([next() * room.width, -40 - next() * 190, 0.5 + next()]);
+    for (let i = 0; i < count; i++)
+      out.push([next() * room.width, -40 - next() * 190, 0.5 + next()]);
     return out;
   }
 }
@@ -45,11 +46,17 @@ export function SetBackdrop({
   t: number;
 }) {
   const ink = palette.muted;
-  const line = { stroke: ink, strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  const line = {
+    stroke: ink,
+    strokeWidth: 1.1,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
   const soft = { fill: palette.card, fillOpacity: 0.3 };
   const { width, floor, unit: u } = room;
   const y = (units: number) => floor + units * u;
-  const at = (share: number, node: ReactNode, key: string) => BackdropPlan.at(room, share, node, key);
+  const at = (share: number, node: ReactNode, key: string) =>
+    BackdropPlan.at(room, share, node, key);
   switch (kind) {
     case "plain":
       return null;
@@ -63,7 +70,14 @@ export function SetBackdrop({
             <g {...line} fill="none">
               <line x1={-18} y1={-96} x2={18} y2={-96} />
               {[-14, -9, -4, 3, 9].map((x, i) => (
-                <rect key={x} x={x} y={-96 - 9 - (i % 2) * 2} width={4} height={9 + (i % 2) * 2} {...soft} />
+                <rect
+                  key={x}
+                  x={x}
+                  y={-96 - 9 - (i % 2) * 2}
+                  width={4}
+                  height={9 + (i % 2) * 2}
+                  {...soft}
+                />
               ))}
             </g>,
             "shelf",
@@ -76,8 +90,21 @@ export function SetBackdrop({
           {at(
             0.5,
             <g {...line}>
-              <rect x={-58} y={-122} width={116} height={50} rx={2} fill="#2F4F3A" fillOpacity={0.55} />
-              <path d="M -46 -106 q 8 -6 16 0 t 16 0 M -40 -92 h 30 M 8 -108 l 24 0 M 10 -96 l 18 8" stroke={palette.ink} strokeOpacity={0.45} fill="none" />
+              <rect
+                x={-58}
+                y={-122}
+                width={116}
+                height={50}
+                rx={2}
+                fill="#2F4F3A"
+                fillOpacity={0.55}
+              />
+              <path
+                d="M -46 -106 q 8 -6 16 0 t 16 0 M -40 -92 h 30 M 8 -108 l 24 0 M 10 -96 l 18 8"
+                stroke={palette.ink}
+                strokeOpacity={0.45}
+                fill="none"
+              />
               <line x1={-58} y1={-70} x2={58} y2={-70} />
             </g>,
             "board",
@@ -94,12 +121,29 @@ export function SetBackdrop({
             <line key={i} x1={i * 26 * u} y1={y(-33)} x2={i * 26 * u} y2={y(-3)} />
           ))}
           {[0.08, 0.6].map((share) => (
-            <rect key={share} x={share * width} y={y(-124)} width={width * 0.3} height={30 * u} rx={u} {...soft} />
+            <rect
+              key={share}
+              x={share * width}
+              y={y(-124)}
+              width={width * 0.3}
+              height={30 * u}
+              rx={u}
+              {...soft}
+              stroke="none"
+            />
           ))}
           {at(
             0.9,
             <g>
-              <rect x={-14} y={-98} width={28} height={98} rx={3} fill={palette.card} fillOpacity={0.45} />
+              <rect
+                x={-14}
+                y={-98}
+                width={28}
+                height={98}
+                rx={3}
+                fill={palette.card}
+                fillOpacity={0.45}
+              />
               <line x1={-14} y1={-66} x2={14} y2={-66} />
               <line x1={9} y1={-88} x2={9} y2={-74} />
             </g>,
@@ -114,9 +158,22 @@ export function SetBackdrop({
             0.5,
             <g>
               <rect x={-40} y={-44} width={80} height={22} rx={6} {...soft} />
-              <rect x={-44} y={-24} width={88} height={14} rx={4} fill={palette.accent2} fillOpacity={0.18} />
+              <rect
+                x={-44}
+                y={-24}
+                width={88}
+                height={14}
+                rx={4}
+                fill={palette.accent2}
+                fillOpacity={0.18}
+              />
               <rect x={-24} y={-118} width={48} height={32} rx={1} {...soft} />
-              <path d="M -16 -94 l 10 -12 l 8 8 l 6 -5 l 8 9" fill="none" stroke={palette.accent} strokeOpacity={0.6} />
+              <path
+                d="M -16 -94 l 10 -12 l 8 8 l 6 -5 l 8 9"
+                fill="none"
+                stroke={palette.accent}
+                strokeOpacity={0.6}
+              />
             </g>,
             "sofa",
           )}
@@ -124,7 +181,11 @@ export function SetBackdrop({
             0.13,
             <g>
               <line x1={0} y1={0} x2={0} y2={-74} />
-              <path d="M -10 -74 L 10 -74 L 6 -92 L -6 -92 Z" fill={palette.warn} fillOpacity={0.3} />
+              <path
+                d="M -10 -74 L 10 -74 L 6 -92 L -6 -92 Z"
+                fill={palette.warn}
+                fillOpacity={0.3}
+              />
             </g>,
             "lamp",
           )}
@@ -139,11 +200,33 @@ export function SetBackdrop({
             const x = i * BackdropPlan.BLOCK * u;
             return (
               <g key={i}>
-                <rect x={x} y={y(-tall)} width={(BackdropPlan.BLOCK - 4) * u} height={tall * u} {...soft} />
+                <rect
+                  x={x}
+                  y={y(-tall)}
+                  width={(BackdropPlan.BLOCK - 4) * u}
+                  height={tall * u}
+                  {...soft}
+                />
                 {Array.from({ length: Math.floor((tall - 20) / 18) }, (_, row) => (
                   <g key={row}>
-                    <rect x={x + 8 * u} y={y(-tall + 12 + row * 18)} width={6 * u} height={7 * u} fill={palette.warn} fillOpacity={(row + i) % 3 ? 0.08 : 0.3} stroke="none" />
-                    <rect x={x + 22 * u} y={y(-tall + 12 + row * 18)} width={6 * u} height={7 * u} fill={palette.warn} fillOpacity={(row + i) % 2 ? 0.08 : 0.25} stroke="none" />
+                    <rect
+                      x={x + 8 * u}
+                      y={y(-tall + 12 + row * 18)}
+                      width={6 * u}
+                      height={7 * u}
+                      fill={palette.warn}
+                      fillOpacity={(row + i) % 3 ? 0.08 : 0.3}
+                      stroke="none"
+                    />
+                    <rect
+                      x={x + 22 * u}
+                      y={y(-tall + 12 + row * 18)}
+                      width={6 * u}
+                      height={7 * u}
+                      fill={palette.warn}
+                      fillOpacity={(row + i) % 2 ? 0.08 : 0.25}
+                      stroke="none"
+                    />
                   </g>
                 ))}
               </g>
@@ -204,7 +287,15 @@ export function SetBackdrop({
             <g>
               <line x1={-24} y1={-92} x2={24} y2={-92} />
               <path d="M -18 -92 l 4 -14 h 2 l 4 14 z" fill={palette.good} fillOpacity={0.35} />
-              <rect x={-4} y={-106} width={7} height={14} rx={1} fill={palette.accent2} fillOpacity={0.35} />
+              <rect
+                x={-4}
+                y={-106}
+                width={7}
+                height={14}
+                rx={1}
+                fill={palette.accent2}
+                fillOpacity={0.35}
+              />
               <circle cx={14} cy={-99} r={6} fill={palette.warn} fillOpacity={0.3} />
             </g>,
             "shelf",
@@ -215,7 +306,15 @@ export function SetBackdrop({
               <rect x={-16} y={-64} width={32} height={64} rx={2} {...soft} />
               <circle cx={-6} cy={-48} r={4} fill="none" />
               <circle cx={7} cy={-48} r={4} fill="none" />
-              <rect x={-10} y={-32} width={20} height={9} rx={1} fill={palette.good} fillOpacity={0.3 + 0.2 * Math.sin(t * 3)} />
+              <rect
+                x={-10}
+                y={-32}
+                width={20}
+                height={9}
+                rx={1}
+                fill={palette.good}
+                fillOpacity={0.3 + 0.2 * Math.sin(t * 3)}
+              />
             </g>,
             "machine",
           )}
@@ -240,7 +339,19 @@ export function SetBackdrop({
               ))}
             </g>
           ))}
-          {at(0.84, <rect x={-26} y={-36} width={52} height={36} rx={2} fill={palette.card} fillOpacity={0.45} />, "counter")}
+          {at(
+            0.84,
+            <rect
+              x={-26}
+              y={-36}
+              width={52}
+              height={36}
+              rx={2}
+              fill={palette.card}
+              fillOpacity={0.45}
+            />,
+            "counter",
+          )}
         </g>
       );
     case "stage": {
@@ -282,7 +393,11 @@ export function SetBackdrop({
             "planet",
           )}
           {[0.2, 0.55, 0.78].map((share) =>
-            at(share, <ellipse cx={0} cy={2} rx={9} ry={2} fill={palette.card} fillOpacity={0.4} />, `crater-${share}`),
+            at(
+              share,
+              <ellipse cx={0} cy={2} rx={9} ry={2} fill={palette.card} fillOpacity={0.4} />,
+              `crater-${share}`,
+            ),
           )}
         </g>
       );

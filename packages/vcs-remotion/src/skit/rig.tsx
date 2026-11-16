@@ -83,7 +83,10 @@ class Limb {
     const r = (degrees * Math.PI) / 180;
     const x = point[0] - about[0];
     const y = point[1] - about[1];
-    return [about[0] + x * Math.cos(r) - y * Math.sin(r), about[1] + x * Math.sin(r) + y * Math.cos(r)];
+    return [
+      about[0] + x * Math.cos(r) - y * Math.sin(r),
+      about[1] + x * Math.sin(r) + y * Math.cos(r),
+    ];
   }
 }
 
@@ -324,7 +327,12 @@ function HairFront({ member, ink }: { member: CastMember; ink: string }) {
       return (
         <g fill={ink}>
           {[-9, -5, 0, 5, 9].map((x, i) => (
-            <circle key={x} cx={x} cy={-r + 1 - (i % 2) * 1.5 - Math.cos((x / r) * 1.2) * 2} r={4} />
+            <circle
+              key={x}
+              cx={x}
+              cy={-r + 1 - (i % 2) * 1.5 - Math.cos((x / r) * 1.2) * 2}
+              r={4}
+            />
           ))}
         </g>
       );
@@ -353,20 +361,28 @@ function Hat({ member, ink }: { member: CastMember; ink: string }) {
   if (!hat) {
     if (!member.hat) return null;
     const size = r * 2.3;
-    return <SetGlyph name={member.hat} x={-size / 2} y={-r - size * 0.78} size={size} color={paint} />;
+    return (
+      <SetGlyph name={member.hat} x={-size / 2} y={-r - size * 0.78} size={size} color={paint} />
+    );
   }
   switch (hat) {
     case "cap":
       return (
         <g {...line}>
-          <path d={`M ${-r} -3 Q ${-r} ${-r - 4} 0 ${-r - 3} Q ${r} ${-r - 4} ${r} -3 Z`} fill={paint} />
+          <path
+            d={`M ${-r} -3 Q ${-r} ${-r - 4} 0 ${-r - 3} Q ${r} ${-r - 4} ${r} -3 Z`}
+            fill={paint}
+          />
           <path d={`M ${r - 2} -3 L ${r + 9} -2 Q ${r + 9} -4.5 ${r - 2} -5.5 Z`} fill={paint} />
         </g>
       );
     case "beanie":
       return (
         <g {...line}>
-          <path d={`M ${-r} -3 Q ${-r} ${-r - 7} 0 ${-r - 6} Q ${r} ${-r - 7} ${r} -3 Z`} fill={paint} />
+          <path
+            d={`M ${-r} -3 Q ${-r} ${-r - 7} 0 ${-r - 6} Q ${r} ${-r - 7} ${r} -3 Z`}
+            fill={paint}
+          />
           <rect x={-r - 0.5} y={-6} width={r * 2 + 1} height={4} rx={1.5} fill={paint} />
           <circle cx={0} cy={-r - 7} r={2.6} fill={paint} />
         </g>
@@ -391,7 +407,10 @@ function Hat({ member, ink }: { member: CastMember; ink: string }) {
     case "hard_hat":
       return (
         <g {...line}>
-          <path d={`M ${-r - 1} ${-r + 4} Q ${-r - 1} ${-r - 9} 0 ${-r - 9} Q ${r + 1} ${-r - 9} ${r + 1} ${-r + 4} Z`} fill="#F2C511" />
+          <path
+            d={`M ${-r - 1} ${-r + 4} Q ${-r - 1} ${-r - 9} 0 ${-r - 9} Q ${r + 1} ${-r - 9} ${r + 1} ${-r + 4} Z`}
+            fill="#F2C511"
+          />
           <rect x={-r - 3} y={-r + 2.5} width={r * 2 + 9} height={2.6} rx={1.2} fill="#F2C511" />
           <line x1={0} y1={-r - 9} x2={0} y2={-r + 2.5} />
         </g>
@@ -416,21 +435,34 @@ function Hat({ member, ink }: { member: CastMember; ink: string }) {
       return (
         <g {...line} fill="#8B5A2B">
           <path d={`M -7 ${-r + 2} Q -8 ${-r - 10} 0 ${-r - 9} Q 8 ${-r - 10} 7 ${-r + 2} Z`} />
-          <path d={`M ${-r - 8} ${-r + 1} Q 0 ${-r + 6} ${r + 8} ${-r + 1} Q 0 ${-r - 1} ${-r - 8} ${-r + 1} Z`} />
+          <path
+            d={`M ${-r - 8} ${-r + 1} Q 0 ${-r + 6} ${r + 8} ${-r + 1} Q 0 ${-r - 1} ${-r - 8} ${-r + 1} Z`}
+          />
         </g>
       );
     case "grad":
       return (
         <g {...line}>
           <rect x={-7} y={-r - 4} width={14} height={5} fill="#1F1B16" />
-          <path d={`M ${-r - 6} ${-r - 4} L 0 ${-r - 8} L ${r + 6} ${-r - 4} L 0 ${-r} Z`} fill="#1F1B16" />
-          <path d={`M 0 ${-r - 4} L ${r + 4} ${-r - 2} L ${r + 4} ${-r + 5}`} stroke={paint} strokeWidth={1.2} fill="none" />
+          <path
+            d={`M ${-r - 6} ${-r - 4} L 0 ${-r - 8} L ${r + 6} ${-r - 4} L 0 ${-r} Z`}
+            fill="#1F1B16"
+          />
+          <path
+            d={`M 0 ${-r - 4} L ${r + 4} ${-r - 2} L ${r + 4} ${-r + 5}`}
+            stroke={paint}
+            strokeWidth={1.2}
+            fill="none"
+          />
         </g>
       );
     case "helmet":
       return (
         <g {...line}>
-          <path d={`M ${-r - 2} 3 Q ${-r - 3} ${-r - 5} 0 ${-r - 5} Q ${r + 3} ${-r - 5} ${r + 2} 3 Z`} fill={paint} />
+          <path
+            d={`M ${-r - 2} 3 Q ${-r - 3} ${-r - 5} 0 ${-r - 5} Q ${r + 3} ${-r - 5} ${r + 2} 3 Z`}
+            fill={paint}
+          />
           <rect x={-6} y={-6} width={r + 9} height={8} rx={3} fill="#9FD3F0" opacity={0.45} />
         </g>
       );
@@ -535,24 +567,56 @@ function Garment({
         <path d={path([top, along(0.55, 1.8), along(0.2, 0), along(0.55, -1.8)])} fill={paint} />
       ) : null}
       {wear === "lab_coat" ? (
-        <line x1={top[0]} y1={top[1]} x2={below(long, 0)[0]} y2={below(long, 0)[1]} stroke={paint} strokeWidth={1.2} />
+        <line
+          x1={top[0]}
+          y1={top[1]}
+          x2={below(long, 0)[0]}
+          y2={below(long, 0)[1]}
+          stroke={paint}
+          strokeWidth={1.2}
+        />
       ) : null}
       {wear === "jacket" ? (
         <g>
-          <path d={path([along(1, 2.2), along(1, -2.2), below(1.5, -2), below(1.5, 2)])} fill={Rig.WEAR_INK.shirt} />
-          <path d={path([along(1, 5), along(0.5, 1.5), along(1, -5)], false)} fill="none" {...edge} />
+          <path
+            d={path([along(1, 2.2), along(1, -2.2), below(1.5, -2), below(1.5, 2)])}
+            fill={Rig.WEAR_INK.shirt}
+          />
+          <path
+            d={path([along(1, 5), along(0.5, 1.5), along(1, -5)], false)}
+            fill="none"
+            {...edge}
+          />
         </g>
       ) : null}
       {wear === "sweater" ? (
         <g fill="none" {...edge} strokeWidth={0.8}>
           <path d={path([below(-2.5, 6.4), below(-2.5, -6.4)], false)} />
-          <path d={`M ${along(1, 3.6)[0]} ${along(1, 3.6)[1]} Q ${along(0.86, 0)[0]} ${along(0.86, 0)[1]} ${along(1, -3.6)[0]} ${along(1, -3.6)[1]}`} />
+          <path
+            d={`M ${along(1, 3.6)[0]} ${along(1, 3.6)[1]} Q ${along(0.86, 0)[0]} ${along(0.86, 0)[1]} ${along(1, -3.6)[0]} ${along(1, -3.6)[1]}`}
+          />
         </g>
       ) : null}
       {wear === "apron" ? (
         <g>
-          <path d={path([along(1, 3.4), along(0.72, 5.4), below(9, 6.6), below(9, -6.6), along(0.72, -5.4), along(1, -3.4)])} fill={paint} {...edge} strokeWidth={0.9} />
-          <path d={path([along(0.5, 7.4), along(0.5, -7.4)], false)} stroke={paint} strokeWidth={1.4} />
+          <path
+            d={path([
+              along(1, 3.4),
+              along(0.72, 5.4),
+              below(9, 6.6),
+              below(9, -6.6),
+              along(0.72, -5.4),
+              along(1, -3.4),
+            ])}
+            fill={paint}
+            {...edge}
+            strokeWidth={0.9}
+          />
+          <path
+            d={path([along(0.5, 7.4), along(0.5, -7.4)], false)}
+            stroke={paint}
+            strokeWidth={1.4}
+          />
         </g>
       ) : null}
       {wear === "uniform" ? (
@@ -561,14 +625,31 @@ function Garment({
           {[0.3, 0.55, 0.8].map((f) => (
             <circle key={f} cx={along(f, 0)[0]} cy={along(f, 0)[1]} r={0.8} fill="#F2C511" />
           ))}
-          <circle cx={along(0.75, -3.8)[0]} cy={along(0.75, -3.8)[1]} r={1.5} fill="#F2C511" stroke={ink} strokeWidth={0.5} />
+          <circle
+            cx={along(0.75, -3.8)[0]}
+            cy={along(0.75, -3.8)[1]}
+            r={1.5}
+            fill="#F2C511"
+            stroke={ink}
+            strokeWidth={0.5}
+          />
         </g>
       ) : null}
       {wear === "robe" ? (
-        <path d={path([along(1, 5), below(4, -6.5)], false)} stroke={ink} strokeWidth={1.2} opacity={0.5} />
+        <path
+          d={path([along(1, 5), below(4, -6.5)], false)}
+          stroke={ink}
+          strokeWidth={1.2}
+          opacity={0.5}
+        />
       ) : null}
       {wear === "scrubs" ? (
-        <path d={path([along(1, 3.6), along(0.66, 0), along(1, -3.6)], false)} fill="none" {...edge} strokeWidth={0.9} />
+        <path
+          d={path([along(1, 3.6), along(0.66, 0), along(1, -3.6)], false)}
+          fill="none"
+          {...edge}
+          strokeWidth={0.9}
+        />
       ) : null}
     </g>
   );
@@ -606,18 +687,50 @@ function Held({
   switch (hold) {
     case "phone":
       return (
-        <rect x={x - 2.2} y={y - 6} width={4.4} height={7.6} rx={1} fill="#14161C" stroke={palette.accent2} strokeWidth={0.8} />
+        <rect
+          x={x - 2.2}
+          y={y - 6}
+          width={4.4}
+          height={7.6}
+          rx={1}
+          fill="#14161C"
+          stroke={palette.accent2}
+          strokeWidth={0.8}
+        />
       );
     case "coffee":
       return (
         <g>
-          <rect x={x - 3} y={y - 4} width={6} height={7} rx={1.2} fill="#F4F1EA" stroke="#14161C" strokeWidth={0.6} />
-          <path d={`M ${x - 1} ${y - 5.5} q 1 -2 0 -4 M ${x + 1.2} ${y - 5.5} q 1 -2 0 -4`} stroke={palette.muted} strokeWidth={0.6} fill="none" />
+          <rect
+            x={x - 3}
+            y={y - 4}
+            width={6}
+            height={7}
+            rx={1.2}
+            fill="#F4F1EA"
+            stroke="#14161C"
+            strokeWidth={0.6}
+          />
+          <path
+            d={`M ${x - 1} ${y - 5.5} q 1 -2 0 -4 M ${x + 1.2} ${y - 5.5} q 1 -2 0 -4`}
+            stroke={palette.muted}
+            strokeWidth={0.6}
+            fill="none"
+          />
         </g>
       );
     case "tablet":
       return (
-        <rect x={x - 5} y={y - 8} width={10} height={13} rx={1.4} fill="#14161C" stroke={palette.accent2} strokeWidth={0.8} />
+        <rect
+          x={x - 5}
+          y={y - 8}
+          width={10}
+          height={13}
+          rx={1.4}
+          fill="#14161C"
+          stroke={palette.accent2}
+          strokeWidth={0.8}
+        />
       );
     case "book":
       return (
@@ -633,7 +746,15 @@ function Held({
       const tip: Point = [x + (dx / len) * 26, y + (dy / len) * 26];
       return (
         <g>
-          <line x1={x} y1={y} x2={tip[0]} y2={tip[1]} stroke="#8B5A2B" strokeWidth={1.3} strokeLinecap="round" />
+          <line
+            x1={x}
+            y1={y}
+            x2={tip[0]}
+            y2={tip[1]}
+            stroke="#8B5A2B"
+            strokeWidth={1.3}
+            strokeLinecap="round"
+          />
           <circle cx={tip[0]} cy={tip[1]} r={1.3} fill={palette.accent} />
         </g>
       );
@@ -706,14 +827,29 @@ export function DeskSet({
         <g strokeLinejoin="round">
           <line x1={37} y1={top} x2={37} y2={top - 8} stroke={ink} strokeWidth={2} />
           <path d={`M 31 ${top} L 43 ${top}`} stroke={ink} strokeWidth={2} strokeLinecap="round" />
-          <rect x={34} y={top - 30} width={6} height={23} rx={1.2} fill="#2B2F3A" stroke={ink} strokeWidth={1.2} />
+          <rect
+            x={34}
+            y={top - 30}
+            width={6}
+            height={23}
+            rx={1.2}
+            fill="#2B2F3A"
+            stroke={ink}
+            strokeWidth={1.2}
+          />
           <circle cx={37} cy={top - 18.5} r={1.3} fill={palette.accent2} opacity={glow + 0.3} />
         </g>
       ) : null}
       {desk === "papers" ? (
         <g fill={palette.card} stroke={ink} strokeWidth={0.8}>
           <rect x={30} y={top - 3} width={14} height={3} />
-          <rect x={31} y={top - 5.4} width={14} height={2.4} transform={`rotate(-4 ${38} ${top - 4})`} />
+          <rect
+            x={31}
+            y={top - 5.4}
+            width={14}
+            height={2.4}
+            transform={`rotate(-4 ${38} ${top - 4})`}
+          />
         </g>
       ) : null}
     </g>

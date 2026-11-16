@@ -56,7 +56,7 @@ const REACTION_ABOUT: Record<Reaction, string> = {
 };
 
 export class SkitKit {
-  static readonly VERSION = 2;
+  static readonly VERSION = 3;
 
   static setCatalog(): string {
     const fields = (SkitKit.json(setSchema).properties ?? {}) as Record<string, JsonSchema>;
@@ -70,7 +70,7 @@ export class SkitKit {
       `HATS: ${HATS.join("|")}. HOLDS: ${HOLDS.join("|")}. SET_PROPS: ${SET_PROPS.join("|")}. Anything else is plain words naming the thing, drawn from the picture library.`,
       "place: where they stand, left to right. Two people talking face each other from left and right; a third goes in the center; a presenter alone stands center.",
       "stance: sit for someone working at a desk; give them a desk (laptop or monitor makes them type while others talk). holds is something in their hand.",
-      `card: one card at the top that the whole video keeps changing, as the first line finds it: ${CARD_KINDS.join("|")} (a ticket's title is the task, a checklist's the plan, a score's what is counted). tags are what it already lists. icon: plain words for its picture. Leave the card out when nothing in the script keeps count.`,
+      `card: one card at the top that the whole video keeps changing, as the first line finds it: ${CARD_KINDS.join("|")} (a ticket's title is the task, a checklist's the plan, a score's what is counted). tags are what it already lists; a checklist's tags are its items still to do. icon: plain words for its picture. Leave the card out unless the script truly keeps count of something; a plain talk needs no card.`,
       "fields: the card's few numbers or short values (points 1, due today), with ids the lines change them by.",
       "props: things on the set, only when the script's place has them.",
     ].join("\n");
@@ -86,13 +86,13 @@ export class SkitKit {
     return [
       `LINES: {"lines": [${Signature.of(line).replace(`of ${Signature.of({})}`, "of CHANGES")}]}, one entry per line of the script, in order, line counted from 1.`,
       "to: the cast id the speaker talks to; left out, they talk to the viewer.",
-      "acts: how the cast moves on this line, at most one entry per person. Give the speaker a pose that plays what they say; left out, they simply talk. Give listeners the pose, face and react that show what they feel hearing it. A pose holds until a later line changes it; a speaker given no pose goes back to rest after the line.",
+      "acts: how the cast moves on this line, at most one entry per person. Give the speaker a pose that plays what they say; left out, they simply talk. Give listeners a face that shows what they feel hearing it. At most one react on a line, on whoever feels it most; the others simply listen. A pose holds until a later line changes it; a speaker given no pose goes back to rest after the line.",
       `POSES: ${list(POSE_ABOUT)}.`,
       `FACES: ${EXPRESSIONS.join("|")}; left out, the pose's own.`,
       `REACTIONS: ${list(REACTION_ABOUT)}.`,
       `CHANGES: ${SkitKit.changes().join(" | ")}`,
       "move: walk to a place, or off to leave the set. Someone who enters starts off the set until a line moves them on.",
-      "card: what this line changes on the card, in the order it says it: tag adds a tag (a new demand, a new task), untag drops one, set gives a field its new value, badge stamps a short badge (DUE TODAY), unbadge, title renames the card. cue: words of the line, copied exactly, where it happens. Let the card grow with the joke.",
+      "card: what this line changes on the card, in the order it says it: tag adds a tag (a new demand, a new task) or ticks a checklist item, untag drops one, set gives a field its new value, badge stamps a short badge (DUE TODAY) for this line only, title renames the card. cue: words of the line, copied exactly, where it happens. Change the card only when the line truly changes it.",
       `draw: ${DRAWS.join("|")}, for a line that explains something better drawn (how a thing works, a flow, numbers). beside keeps the cast in view and the speaker presents a board drawn next to them; full cuts away to the board, the speaker small below. Use it only as often as the brief allows, never on the first line.`,
     ].join("\n");
   }
@@ -100,7 +100,9 @@ export class SkitKit {
   static changes(): string[] {
     return changeSchema.options.map((option) => {
       const kind = option.shape.do.value;
-      const rest = Signature.fields(SkitKit.json(option)).filter((field) => !field.startsWith("do"));
+      const rest = Signature.fields(SkitKit.json(option)).filter(
+        (field) => !field.startsWith("do"),
+      );
       return `{do: ${kind}, ${rest.join(", ")}}`;
     });
   }

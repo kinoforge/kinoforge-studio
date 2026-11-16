@@ -19,6 +19,7 @@ export interface MemberState {
 export interface CardState {
   title: string;
   tags: string[];
+  done: string[];
   badges: string[];
   fields: Record<string, number | string>;
 }
@@ -41,7 +42,8 @@ export class CardMemory {
     return {
       title: set.card.title,
       tags: [...(set.card.tags ?? [])],
-      badges: [...(set.card.badges ?? [])],
+      done: [],
+      badges: [],
       fields: Object.fromEntries((set.fields ?? []).map((field) => [field.id, field.value])),
     };
   }
@@ -49,17 +51,21 @@ export class CardMemory {
   static apply(card: CardState, change: CardChange): CardState {
     switch (change.do) {
       case "tag":
-        return card.tags.includes(change.text)
-          ? card
-          : { ...card, tags: [...card.tags, change.text] };
+        return {
+          ...card,
+          tags: card.tags.includes(change.text) ? card.tags : [...card.tags, change.text],
+          done: card.done.includes(change.text) ? card.done : [...card.done, change.text],
+        };
       case "untag":
-        return { ...card, tags: card.tags.filter((tag) => tag !== change.text) };
+        return {
+          ...card,
+          tags: card.tags.filter((tag) => tag !== change.text),
+          done: card.done.filter((tag) => tag !== change.text),
+        };
       case "badge":
         return card.badges.includes(change.text)
           ? card
           : { ...card, badges: [...card.badges, change.text] };
-      case "unbadge":
-        return { ...card, badges: card.badges.filter((badge) => badge !== change.text) };
       case "set":
         return { ...card, fields: { ...card.fields, [change.field]: change.value } };
       case "title":
@@ -106,7 +112,10 @@ export class SkitMemory {
       if (now) members[member.id] = { ...now, facing: SkitMemory.turned(members, line, member.id) };
     }
     let card = state.card;
-    if (card) for (const change of line.card ?? []) card = CardMemory.apply(card, change);
+    if (card) {
+      for (const change of line.card ?? []) card = CardMemory.apply(card, change);
+      card = { ...card, badges: [] };
+    }
     return { members, card };
   }
 

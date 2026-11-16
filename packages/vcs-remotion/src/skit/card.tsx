@@ -21,6 +21,7 @@ interface CardPlan {
 
 export class CardLayout {
   static readonly MOVE = 0.45;
+  static readonly BADGE_FADE = 0.35;
 
   static font(frame: number) {
     return frame * 0.042;
@@ -68,7 +69,17 @@ class FieldValue {
   }
 }
 
-function KindGlyph({ kind, size, color }: { kind: CardKind; size: number; color: string }) {
+function KindGlyph({
+  kind,
+  size,
+  color,
+  tick = 1,
+}: {
+  kind: CardKind;
+  size: number;
+  color: string;
+  tick?: number;
+}) {
   const s = size;
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" style={{ flex: "none" }}>
@@ -83,7 +94,12 @@ function KindGlyph({ kind, size, color }: { kind: CardKind; size: number; color:
       {kind === "checklist" ? (
         <g fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round">
           <rect x={3} y={3} width={18} height={18} rx={4} />
-          <path d="M7.5 12.5l3 3 6-7" />
+          {tick > 0 ? (
+            <path
+              d="M7.5 12.5l3 3 6-7"
+              transform={`translate(12 12) scale(${tick}) translate(-12 -12)`}
+            />
+          ) : null}
         </g>
       ) : null}
       {kind === "score" ? (
@@ -110,6 +126,7 @@ export function RunningCard({
   opacity,
   palette,
   t,
+  fade,
 }: {
   kind: CardKind;
   icon?: string;
@@ -124,6 +141,7 @@ export function RunningCard({
   opacity: number;
   palette: BoardPalette;
   t: number;
+  fade: number;
 }) {
   const fs = CardLayout.font(frame);
   const p = changed >= 0 ? Ease.out(t, CardLayout.MOVE, changed) : 1;
@@ -139,8 +157,12 @@ export function RunningCard({
     h: a.h + (b.h - a.h) * p,
   });
   const tags = [...new Set([...before.tags, ...after.tags])];
-  const titleSize = FitText.size(after.title, { w: w - pad * 3 - fs * 1.6, h: old.title * 1.4 }, old.title, 1);
-  const badges = [...new Set([...before.badges, ...after.badges])];
+  const titleSize = FitText.size(
+    after.title,
+    { w: w - pad * 3 - fs * 1.6, h: old.title * 1.4 },
+    old.title,
+    1,
+  );
   const cell = (w - pad * 2) / Math.max(1, fields.length);
   return (
     <div
@@ -152,7 +174,7 @@ export function RunningCard({
         height: h,
         background: palette.card,
         borderRadius: fs * 0.7,
-        border: `${Math.max(2, fs * 0.07)}px solid ${palette.accent}88`,
+        border: `${Math.max(1.5, fs * 0.045)}px solid ${palette.accent}88`,
         boxShadow: `0 ${fs * 0.3}px ${fs * 1.2}px ${palette.shadow}${palette.glow ? `, 0 0 ${fs * 0.8 * palette.glow}px ${palette.accent}44` : ""}`,
         opacity,
         fontFamily: BOARD_FONT,
@@ -195,6 +217,8 @@ export function RunningCard({
         if (!box) return null;
         const scale = !was ? Ease.pop(t, 0.4, changed) : !will ? 1 - p : 1;
         const fresh = !was && will;
+        const ticked = after.done.includes(tag);
+        const tick = !ticked ? 0 : before.done.includes(tag) ? 1 : Ease.pop(t, 0.4, changed);
         return (
           <div
             key={tag}
@@ -214,14 +238,23 @@ export function RunningCard({
               padding: kind === "checklist" ? 0 : `0 ${chip * 0.7}px`,
               borderRadius: chip * 0.6,
               background: kind === "checklist" ? "transparent" : `${palette.accent2}22`,
-              border: kind === "checklist" ? "none" : `${Math.max(2, chip * 0.08)}px solid ${fresh && p < 1 ? palette.warn : `${palette.accent2}99`}`,
+              border:
+                kind === "checklist"
+                  ? "none"
+                  : `${Math.max(1.5, chip * 0.05)}px solid ${fresh && p < 1 ? palette.warn : `${palette.accent2}99`}`,
               fontSize: chip,
               fontWeight: 700,
               whiteSpace: "nowrap",
+              color: kind === "checklist" && !ticked ? palette.muted : palette.cardInk,
             }}
           >
             {kind === "checklist" ? (
-              <KindGlyph kind="checklist" size={chip * 1.2} color={palette.good} />
+              <KindGlyph
+                kind="checklist"
+                size={chip * 1.2}
+                color={ticked ? palette.good : palette.muted}
+                tick={Math.max(0, tick)}
+              />
             ) : null}
             {tag}
           </div>
@@ -284,10 +317,8 @@ export function RunningCard({
           gap: fs * 0.3,
         }}
       >
-        {badges.map((badge, i) => {
-          const fresh = !before.badges.includes(badge);
-          const gone = !after.badges.includes(badge);
-          const pop = fresh ? Ease.pop(t, 0.35, changed) : gone ? 1 - p : 1;
+        {after.badges.map((badge, i) => {
+          const pop = before.badges.includes(badge) ? 1 : Ease.pop(t, 0.35, changed);
           const tone = i % 2 ? palette.warn : palette.bad;
           return (
             <div
@@ -299,13 +330,13 @@ export function RunningCard({
                 textTransform: "uppercase",
                 color: tone,
                 background: palette.card,
-                border: `${Math.max(2, fs * 0.09)}px solid ${tone}`,
+                border: `${Math.max(1.5, fs * 0.06)}px solid ${tone}`,
                 borderRadius: fs * 0.25,
                 padding: `${fs * 0.1}px ${fs * 0.35}px`,
                 transform: `rotate(${-5 + i * 4}deg) scale(${Math.max(0.01, pop)})`,
                 boxShadow: `0 ${fs * 0.1}px ${fs * 0.35}px ${palette.shadow}`,
                 whiteSpace: "nowrap",
-                opacity: gone ? 1 - p : 1,
+                opacity: fade,
               }}
             >
               {badge}

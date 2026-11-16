@@ -4,7 +4,10 @@ import { BoardElementsContext, BoardGlyphs, ElementPaths } from "../explainer/el
 export class SkitPictures {
   static built<T extends string>(name: string | undefined, kinds: readonly T[]): T | null {
     if (!name) return null;
-    const key = name.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    const key = name
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
     return (kinds as readonly string[]).includes(key) ? (key as T) : null;
   }
 }

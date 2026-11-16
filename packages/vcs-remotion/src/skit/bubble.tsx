@@ -31,7 +31,10 @@ export class BubbleShape {
     const tail = max * BubbleShape.TAIL;
     const tall = Math.max(max * 2, spot.y - room.top - tail - max * BubbleShape.GAP);
     const inner = { w: room.width - pad * 2, h: tall - pad * 2 - max * 0.9 };
-    const font = Math.max(frame * BubbleShape.LEAST, FitText.size(text, inner, max, BubbleShape.LINES));
+    const font = Math.max(
+      frame * BubbleShape.LEAST,
+      FitText.size(text, inner, max, BubbleShape.LINES),
+    );
     const border = BubbleShape.border(font);
     const widest = Math.max(
       ...text.split(/\s+/).map((word) => FitText.width(word, font)),
@@ -46,13 +49,18 @@ export class BubbleShape {
   }
 
   static border(font: number): number {
-    return Math.max(3, font * 0.1);
+    return Math.max(2, font * 0.06);
   }
 
   static need(text: string, width: number, frame: number): number {
     const max = frame * 0.044;
     const room = { left: 0, right: width, top: 0, width };
-    const shape = BubbleShape.size(BubbleShape.longest(text), room, { x: width / 2, y: frame * 10 }, frame);
+    const shape = BubbleShape.size(
+      BubbleShape.longest(text),
+      room,
+      { x: width / 2, y: frame * 10 },
+      frame,
+    );
     return shape.h + shape.tail + max * (0.9 + BubbleShape.GAP);
   }
 
@@ -142,7 +150,7 @@ export function SpeechBubble({
   }
   const tokens = phrases[at];
   const current = leave >= 0 ? -1 : BubbleShape.spoken(words, count, t) - start;
-  const glow = shape.font * 0.45 * palette.glow;
+  const glow = shape.font * 0.25 * palette.glow;
   const tailX = Math.min(shape.x + shape.w - shape.font, Math.max(shape.x + shape.font, spot.x));
   const chip = shape.font * 0.62;
   const originX = tailX - shape.x;

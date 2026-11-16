@@ -157,7 +157,14 @@ interface SetView {
 }
 
 class SkitLayout {
-  static readonly BESIDE = { tall: 0.25, wide: 0.42, column: 0.6, top: 0.04, least: 0.4, most: 0.58 };
+  static readonly BESIDE = {
+    tall: 0.25,
+    wide: 0.42,
+    column: 0.6,
+    top: 0.04,
+    least: 0.4,
+    most: 0.58,
+  };
 
   static of(width: number, height: number, reserve: CaptionReserve) {
     const spec = FRAMES[height > width ? "tall" : "wide"];
@@ -176,12 +183,7 @@ class SkitLayout {
     };
   }
 
-  static beside(
-    width: number,
-    height: number,
-    reserve: CaptionReserve,
-    text: string,
-  ): SetView {
+  static beside(width: number, height: number, reserve: CaptionReserve, text: string): SetView {
     const base = SkitLayout.of(width, height, reserve);
     const top = height * (reserve === "top" ? 0.16 : SkitLayout.BESIDE.top);
     if (height > width) {
@@ -232,7 +234,11 @@ class SkitLayout {
       span: m(a.span, b.span),
       floor: m(a.floor, b.floor),
       unit: m(a.unit, b.unit),
-      room: { left: m(a.room.left, b.room.left), right: m(a.room.right, b.room.right), top: m(a.room.top, b.room.top) },
+      room: {
+        left: m(a.room.left, b.room.left),
+        right: m(a.room.right, b.room.right),
+        top: m(a.room.top, b.room.top),
+      },
       board: b.board,
     };
   }
@@ -308,7 +314,9 @@ class CastMotion {
   }
 
   static x(member: CastMember, place: Move, span: Span): number {
-    return place === OFF ? CastMotion.offX(member, span) : span.left + SkitPlaces.share(place) * span.span;
+    return place === OFF
+      ? CastMotion.offX(member, span)
+      : span.left + SkitPlaces.share(place) * span.span;
   }
 
   static place(
@@ -362,7 +370,8 @@ class CastMotion {
     const turnAt = walking ? walkAt : moving ? walkAt + walkFor : 0.04;
     let dir = before.facing + (turnTo - before.facing) * Ease.inOut(t, SkitTiming.TURN, turnAt);
     if (presenting && board && !walking) {
-      const look = Ease.inOut(t, SkitTiming.TURN, 0.04) * (1 - Ease.inOut(t, SkitTiming.TURN, settle));
+      const look =
+        Ease.inOut(t, SkitTiming.TURN, 0.04) * (1 - Ease.inOut(t, SkitTiming.TURN, settle));
       dir = dir + (board - dir) * look;
     }
     const talk = speaker ? SkitTiming.talk(words, t) : 0;
@@ -422,7 +431,10 @@ function SetLayer({
   const lines = useMemo(() => history.map((moment) => moment.line), [history]);
   const before = useMemo(() => SkitMemory.before(set, lines), [set, lines]);
   const after = useMemo(() => SkitMemory.after(set, before, line), [set, before, line]);
-  const changeTimes = useMemo(() => SkitTiming.changes(line, words, seconds), [line, words, seconds]);
+  const changeTimes = useMemo(
+    () => SkitTiming.changes(line, words, seconds),
+    [line, words, seconds],
+  );
   let card: CardState | null = before.card;
   let cardFrom: CardState | null = before.card;
   let changed = -1;
@@ -435,7 +447,13 @@ function SetLayer({
   }
   const cardPlan =
     card && set.card
-      ? CardLayout.plan(card, set.card.kind, layout.card.w, CardLayout.font(layout.frame), (set.fields ?? []).length)
+      ? CardLayout.plan(
+          card,
+          set.card.kind,
+          layout.card.w,
+          CardLayout.font(layout.frame),
+          (set.fields ?? []).length,
+        )
       : null;
   const cardBottom = cardPlan ? layout.card.y + cardPlan.h + layout.frame * 0.06 : layout.card.y;
   const open = SkitLayout.open(width, height, reserve, cardBottom);
@@ -461,7 +479,9 @@ function SetLayer({
   const speaking = placed.find((entry) => entry.member.id === line.speaker);
   const last = history.at(-1);
   const lastSpeaker =
-    last && !last.line.draw ? set.cast.find((member) => member.id === last.line.speaker) : undefined;
+    last && !last.line.draw
+      ? set.cast.find((member) => member.id === last.line.speaker)
+      : undefined;
   const lastSpot = lastSpeaker
     ? (() => {
         const state = before.members[lastSpeaker.id];
@@ -492,11 +512,21 @@ function SetLayer({
           </clipPath>
         ) : null}
         <g opacity={0.75 * (1 - beside)}>
-          <SetBackdrop kind={set.backdrop ?? "plain"} room={{ width, floor: view.floor, unit: u }} palette={palette} t={t} />
+          <SetBackdrop
+            kind={set.backdrop ?? "plain"}
+            room={{ width, floor: view.floor, unit: u }}
+            palette={palette}
+            t={t}
+          />
         </g>
         {beside > 0 ? (
           <g opacity={0.6 * beside} clipPath="url(#skit-set-clip)">
-            <SetBackdrop kind={set.backdrop ?? "plain"} room={{ width, floor: view.floor, unit: u }} palette={palette} t={t} />
+            <SetBackdrop
+              kind={set.backdrop ?? "plain"}
+              room={{ width, floor: view.floor, unit: u }}
+              palette={palette}
+              t={t}
+            />
           </g>
         ) : null}
         <line
@@ -531,7 +561,12 @@ function SetLayer({
               key={entry.member.id}
               transform={`translate(${entry.x} ${view.floor}) scale(${u * entry.dir} ${u})`}
             >
-              <StickFigure member={entry.member} frame={entry.frame} palette={palette} mirror={entry.dir < 0} />
+              <StickFigure
+                member={entry.member}
+                frame={entry.frame}
+                palette={palette}
+                mirror={entry.dir < 0}
+              />
             </g>
           ))}
         {desks.map((member) => (
@@ -539,7 +574,13 @@ function SetLayer({
             key={`desk-${member.id}`}
             transform={`translate(${anchorX(member)} ${view.floor}) scale(${u * SkitMemory.facing(member.place)} ${u})`}
           >
-            <DeskSet member={member} sit={member.stance === "sit" ? Math.max(0.5, sitOf(member)) : 0} ink={palette.ink} palette={palette} t={t} />
+            <DeskSet
+              member={member}
+              sit={member.stance === "sit" ? Math.max(0.5, sitOf(member)) : 0}
+              ink={palette.ink}
+              palette={palette}
+              t={t}
+            />
           </g>
         ))}
         {placed.map((entry) => {
@@ -575,6 +616,7 @@ function SetLayer({
           opacity={1 - beside}
           palette={palette}
           t={t}
+          fade={Math.min(1, Math.max(0, (seconds - t) / CardLayout.BADGE_FADE))}
         />
       ) : null}
       {last && lastSpeaker && lastSpot ? (
@@ -780,11 +822,7 @@ export function SkitMomentView({
   const full = line.draw === "full" && !!drawn;
   const besideNow = line.draw === "beside" && !!drawn;
   const back = !full && before === "full";
-  const away = full
-    ? Ease.inOut(t, SkitTiming.CUT)
-    : back
-      ? 1 - Ease.inOut(t, SkitTiming.CUT)
-      : 0;
+  const away = full ? Ease.inOut(t, SkitTiming.CUT) : back ? 1 - Ease.inOut(t, SkitTiming.CUT) : 0;
   const beside = besideNow
     ? (before === "beside" ? 1 : Ease.inOut(t, SkitTiming.CUT)) *
       (next?.draw === "beside" ? 1 : 1 - Ease.inOut(t, SkitTiming.CUT, seconds - SkitTiming.CUT))

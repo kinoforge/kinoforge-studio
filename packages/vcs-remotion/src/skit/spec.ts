@@ -14,7 +14,6 @@ export const SKIT_LIMITS = {
   label: 14,
   value: 14,
   unit: 8,
-  badges: 3,
   badge: 16,
   acts: 4,
   changes: 4,
@@ -38,7 +37,17 @@ export const WEARS = [
   "robe",
   "scrubs",
 ] as const;
-export const HAIRS = ["none", "short", "long", "bun", "curly", "spiky", "ponytail", "afro", "mohawk"] as const;
+export const HAIRS = [
+  "none",
+  "short",
+  "long",
+  "bun",
+  "curly",
+  "spiky",
+  "ponytail",
+  "afro",
+  "mohawk",
+] as const;
 export const HAIR_COLOURS = ["black", "brown", "blonde", "red", "grey", "white"] as const;
 export const SKINS = ["light", "fair", "tan", "brown", "dark"] as const;
 export const HATS = [
@@ -111,7 +120,7 @@ export const REACTIONS = [
   "sparkle",
   "zzz",
 ] as const;
-export const CHANGE_KINDS = ["tag", "untag", "set", "badge", "unbadge", "title"] as const;
+export const CHANGE_KINDS = ["tag", "untag", "set", "badge", "title"] as const;
 export const OFF = "off";
 export const MOVES = [...PLACES, OFF] as const;
 
@@ -154,7 +163,10 @@ export const castSchema = z.object({
   stance: z.enum(STANCES),
   desk: z.enum(DESKS).optional(),
   holds: picture.optional().describe("one of HOLDS, or plain words naming any thing in hand"),
-  enters: z.boolean().optional().describe("true starts them off the set until a line moves them on"),
+  enters: z
+    .boolean()
+    .optional()
+    .describe("true starts them off the set until a line moves them on"),
 });
 export type CastMember = z.infer<typeof castSchema>;
 
@@ -171,7 +183,6 @@ export const cardSchema = z.object({
   title: text(SKIT_LIMITS.title),
   icon: picture.optional(),
   tags: z.array(text(SKIT_LIMITS.tag)).max(SKIT_LIMITS.tags).optional(),
-  badges: z.array(text(SKIT_LIMITS.badge)).max(SKIT_LIMITS.badges).optional(),
 });
 export type RunningCard = z.infer<typeof cardSchema>;
 
@@ -184,10 +195,7 @@ export type SetPropPick = z.infer<typeof propSchema>;
 export const setSchema = z.object({
   backdrop: z.enum(BACKDROPS).optional(),
   cast: z.array(castSchema).min(1).max(SKIT_LIMITS.cast),
-  props: z
-    .array(propSchema)
-    .max(SKIT_LIMITS.props)
-    .optional(),
+  props: z.array(propSchema).max(SKIT_LIMITS.props).optional(),
   card: cardSchema.optional(),
   fields: z.array(fieldSchema).max(SKIT_LIMITS.fields).optional(),
 });
@@ -216,7 +224,6 @@ export const changeSchema = z.discriminatedUnion("do", [
     cue,
   }),
   z.object({ do: z.literal("badge"), text: text(SKIT_LIMITS.badge), cue }),
-  z.object({ do: z.literal("unbadge"), text: text(SKIT_LIMITS.badge), cue }),
   z.object({ do: z.literal("title"), text: text(SKIT_LIMITS.title), cue }),
 ]);
 export type CardChange = z.infer<typeof changeSchema>;
@@ -231,5 +238,9 @@ export const lineSchema = z.object({
 export type SkitLine = z.infer<typeof lineSchema>;
 
 export const directionSchema = z.object({
-  lines: z.array(lineSchema.omit({ speaker: true }).extend({ line: z.number().int().min(1).max(SKIT_LIMITS.lines) })),
+  lines: z.array(
+    lineSchema
+      .omit({ speaker: true })
+      .extend({ line: z.number().int().min(1).max(SKIT_LIMITS.lines) }),
+  ),
 });
