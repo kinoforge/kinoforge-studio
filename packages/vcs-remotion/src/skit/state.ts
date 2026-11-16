@@ -51,6 +51,10 @@ export class CardMemory {
   static apply(card: CardState, change: CardChange): CardState {
     switch (change.do) {
       case "tag":
+        return card.tags.includes(change.text)
+          ? card
+          : { ...card, tags: [...card.tags, change.text] };
+      case "tick":
         return {
           ...card,
           tags: card.tags.includes(change.text) ? card.tags : [...card.tags, change.text],

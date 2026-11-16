@@ -56,23 +56,24 @@ const REACTION_ABOUT: Record<Reaction, string> = {
 };
 
 export class SkitKit {
-  static readonly VERSION = 3;
+  static readonly VERSION = 4;
 
   static setCatalog(): string {
     const fields = (SkitKit.json(setSchema).properties ?? {}) as Record<string, JsonSchema>;
     const cast = fields.cast?.items ?? {};
     return [
       `SET: {"backdrop"?: ${BACKDROPS.join("|")}, "cast": 1 to ${SKIT_LIMITS.cast} of ${Signature.of(cast)}, "props"?: ${Signature.of(fields.props ?? {})}, "card"?: ${Signature.of(fields.card ?? {})}, "fields"?: ${Signature.of(fields.fields ?? {})}}`,
-      "backdrop: where the script happens; plain when it names no place.",
+      "backdrop: the script's own place; the nearest kind only when none is it; plain when it names no place.",
       "cast: everyone who speaks in the script, named exactly as the script names them, with a short kebab-case id. role is the label on their speech bubble: their job or part in the story (Teacher, Mom, Chef, Product manager). One presenter alone is a cast of one.",
       `voice: ${VOICE_KINDS.join("|")}, as the character would sound.`,
       "Looks: give each person a look that fits who they are (wear, hair, hat, face, skin, colour), different enough to tell apart. head: plain words for a drawn head instead of a face (a robot, a cat), only for someone who is not a person.",
       `HATS: ${HATS.join("|")}. HOLDS: ${HOLDS.join("|")}. SET_PROPS: ${SET_PROPS.join("|")}. Anything else is plain words naming the thing, drawn from the picture library.`,
       "place: where they stand, left to right. Two people talking face each other from left and right; a third goes in the center; a presenter alone stands center.",
-      "stance: sit for someone working at a desk; give them a desk (laptop or monitor makes them type while others talk). holds is something in their hand.",
-      `card: one card at the top that the whole video keeps changing, as the first line finds it: ${CARD_KINDS.join("|")} (a ticket's title is the task, a checklist's the plan, a score's what is counted). tags are what it already lists; a checklist's tags are its items still to do. icon: plain words for its picture. Leave the card out unless the script truly keeps count of something; a plain talk needs no card.`,
+      "stance: stand, or sit for someone working at a desk; give them a desk (laptop or monitor makes them type while others talk).",
+      "holds: the one thing the script puts in their hand, in plain words when it is not in HOLDS (a toothbrush, a spoon); never another thing standing in for it, and none when their hands are free.",
+      `card: one card at the top that the whole video keeps changing, as the first line finds it: ${CARD_KINDS.join("|")} (a ticket's title is the task, a checklist's the plan, a score's what is counted). tags are what it lists before the first line: only what the viewer may already know (a plan's steps). A list the script builds as it goes (excuses, demands, mistakes) starts with no tags and its lines add them. icon: plain words for its picture. Leave the card out unless the script truly keeps count of something; a plain talk needs no card.`,
       "fields: the card's few numbers or short values (points 1, due today), with ids the lines change them by.",
-      "props: things on the set, only when the script's place has them.",
+      "props: things standing on the set (furniture, machines), only when the script's place has them; a small thing someone uses goes in their hand instead.",
     ].join("\n");
   }
 
@@ -92,8 +93,20 @@ export class SkitKit {
       `REACTIONS: ${list(REACTION_ABOUT)}.`,
       `CHANGES: ${SkitKit.changes().join(" | ")}`,
       "move: walk to a place, or off to leave the set. Someone who enters starts off the set until a line moves them on.",
-      "card: what this line changes on the card, in the order it says it: tag adds a tag (a new demand, a new task) or ticks a checklist item, untag drops one, set gives a field its new value, badge stamps a short badge (DUE TODAY) for this line only, title renames the card. cue: words of the line, copied exactly, where it happens. Change the card only when the line truly changes it.",
+      "card: what this line changes on the card, in the order it says it: tag adds a tag (a new demand, a new task, a new excuse) when the line first names it, tick ticks a checklist item as done or beaten, untag drops one that no longer belongs, set gives a field its new value, badge stamps a short badge (DUE TODAY) for this line only, title renames the card. cue: words of the line, copied exactly, where it happens. Change the card only when the line truly changes it.",
       `draw: ${DRAWS.join("|")}, for a line that explains something better drawn (how a thing works, a flow, numbers). beside keeps the cast in view and the speaker presents a board drawn next to them; full cuts away to the board, the speaker small below. Use it only as often as the brief allows, never on the first line.`,
+      "beat: true holds a short pause after this line: after a setup so its punchline lands, or after the big laugh. Only on those lines.",
+    ].join("\n");
+  }
+
+  static storyCatalog(): string {
+    return [
+      "This video is a dialogue: each scene is one line said by one of the characters. Set speaker to their name, narration to exactly what they say, and prompt to what they do.",
+      "It is played by drawn stick figure people on one flat set seen from the front, like a puppet show. There is no camera: no close ups, angles, cuts or reflections, and no hands doing fine work.",
+      `The set is one of: ${BACKDROPS.join(", ")}. Each person stands or sits in one place, walks to another place or off the set, holds one thing in their hand, and plays each line with one pose, one face and one mark over the head.`,
+      `Poses: ${POSES.join(", ")}. Faces: ${EXPRESSIONS.join(", ")}. Marks: ${REACTIONS.join(", ")}.`,
+      "A card at the top can keep a running list, a checklist or a score, and a line may show a drawn board that explains something.",
+      "So each scene prompt is one short stage direction the set can play: who takes which pose with what face, holding what. The jokes live in the words; the set only backs them up.",
     ].join("\n");
   }
 
@@ -128,6 +141,7 @@ export class SkitKit {
       pictures: { hat: HATS, head: [], holds: HOLDS, kind: SET_PROPS, icon: [] },
       colors: BOARD_COLOR_KEYS,
       glows: BOARD_GLOWS,
+      story: { catalog: SkitKit.storyCatalog() },
       set: { schema: SkitKit.json(setSchema), catalog: SkitKit.setCatalog() },
       direction: { schema: SkitKit.json(directionSchema), catalog: SkitKit.directionCatalog() },
       assets: BoardThemes.swatches(),

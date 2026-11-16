@@ -36,6 +36,7 @@ export const WEARS = [
   "uniform",
   "robe",
   "scrubs",
+  "pyjamas",
 ] as const;
 export const HAIRS = [
   "none",
@@ -73,6 +74,8 @@ export const BACKDROPS = [
   "classroom",
   "kitchen",
   "home",
+  "bedroom",
+  "bathroom",
   "street",
   "park",
   "lab",
@@ -120,7 +123,7 @@ export const REACTIONS = [
   "sparkle",
   "zzz",
 ] as const;
-export const CHANGE_KINDS = ["tag", "untag", "set", "badge", "title"] as const;
+export const CHANGE_KINDS = ["tag", "tick", "untag", "set", "badge", "title"] as const;
 export const OFF = "off";
 export const MOVES = [...PLACES, OFF] as const;
 
@@ -216,6 +219,7 @@ const cue = text(SKIT_LIMITS.cue)
 
 export const changeSchema = z.discriminatedUnion("do", [
   z.object({ do: z.literal("tag"), text: text(SKIT_LIMITS.tag), cue }),
+  z.object({ do: z.literal("tick"), text: text(SKIT_LIMITS.tag), cue }),
   z.object({ do: z.literal("untag"), text: text(SKIT_LIMITS.tag), cue }),
   z.object({
     do: z.literal("set"),
@@ -234,6 +238,7 @@ export const lineSchema = z.object({
   acts: z.array(actSchema).max(SKIT_LIMITS.acts).optional(),
   card: z.array(changeSchema).max(SKIT_LIMITS.changes).optional(),
   draw: z.enum(DRAWS).optional(),
+  beat: z.boolean().optional().describe("true holds a short pause after the line"),
 });
 export type SkitLine = z.infer<typeof lineSchema>;
 

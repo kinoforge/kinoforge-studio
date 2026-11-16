@@ -192,6 +192,109 @@ export function SetBackdrop({
           {at(0.86, <SetPiece name="window" palette={palette} t={t} />, "window")}
         </g>
       );
+    case "bedroom":
+      return (
+        <g {...line}>
+          {at(
+            0.5,
+            <g>
+              <rect x={-50} y={-66} width={8} height={66} rx={2} {...soft} />
+              <rect x={-44} y={-30} width={92} height={18} rx={3} {...soft} />
+              <rect
+                x={-44}
+                y={-40}
+                width={90}
+                height={12}
+                rx={4}
+                fill={palette.card}
+                fillOpacity={0.2}
+              />
+              <ellipse cx={-32} cy={-44} rx={10} ry={5} fill={palette.card} fillOpacity={0.4} />
+              <rect
+                x={-16}
+                y={-43}
+                width={62}
+                height={16}
+                rx={4}
+                fill={palette.accent2}
+                fillOpacity={0.2}
+              />
+              <line x1={-40} y1={-12} x2={-40} y2={0} />
+              <line x1={42} y1={-12} x2={42} y2={0} />
+            </g>,
+            "bed",
+          )}
+          {at(
+            0.14,
+            <g>
+              <rect x={-12} y={-30} width={24} height={30} rx={2} {...soft} />
+              <line x1={0} y1={-30} x2={0} y2={-46} />
+              <path d="M -9 -46 L 9 -46 L 6 -58 L -6 -58 Z" fill={palette.warn} fillOpacity={0.3} />
+            </g>,
+            "nightstand",
+          )}
+          {at(0.86, <SetPiece name="window" palette={palette} t={t} />, "window")}
+        </g>
+      );
+    case "bathroom":
+      return (
+        <g {...line}>
+          <rect x={0} y={y(-58)} width={width} height={58 * u} {...soft} stroke="none" />
+          <line x1={0} y1={y(-58)} x2={width} y2={y(-58)} />
+          {Array.from({ length: Math.ceil(width / (18 * u)) }, (_, i) => (
+            <line key={i} x1={i * 18 * u} y1={y(-55)} x2={i * 18 * u} y2={y(-3)} />
+          ))}
+          {at(
+            0.5,
+            <g>
+              <rect
+                x={-20}
+                y={-132}
+                width={40}
+                height={48}
+                rx={10}
+                fill={palette.accent2}
+                fillOpacity={0.12}
+              />
+              <path d="M -10 -122 l 8 -6 M -12 -112 l 16 -12" fill="none" strokeOpacity={0.6} />
+              <path
+                d="M -24 -66 h 48 q -2 16 -24 16 q -22 0 -24 -16 z"
+                fill={palette.card}
+                fillOpacity={0.5}
+              />
+              <rect x={-5} y={-50} width={10} height={50} {...soft} />
+              <path d="M 0 -66 v -8 h 8" fill="none" />
+            </g>,
+            "sink",
+          )}
+          {at(
+            0.86,
+            <g>
+              <line x1={-16} y1={-100} x2={16} y2={-100} />
+              <rect
+                x={-11}
+                y={-100}
+                width={22}
+                height={30}
+                rx={2}
+                fill={palette.accent}
+                fillOpacity={0.2}
+              />
+            </g>,
+            "towel",
+          )}
+          {at(
+            0.15,
+            <g>
+              <line x1={-16} y1={-92} x2={16} y2={-92} />
+              <rect x={-5} y={-104} width={10} height={12} rx={2} {...soft} />
+              <line x1={-2} y1={-104} x2={-4} y2={-112} />
+              <line x1={2} y1={-104} x2={4} y2={-112} />
+            </g>,
+            "cup",
+          )}
+        </g>
+      );
     case "street":
       return (
         <g {...line} strokeOpacity={0.7}>

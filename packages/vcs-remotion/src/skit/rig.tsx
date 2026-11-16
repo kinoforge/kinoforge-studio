@@ -643,6 +643,20 @@ function Garment({
           opacity={0.5}
         />
       ) : null}
+      {wear === "pyjamas" ? (
+        <g fill="#FFFFFF" fillOpacity={0.6}>
+          {[
+            [0.78, 3.8],
+            [0.46, -3.6],
+            [0.18, 3.2],
+          ].map(([f, side]) => (
+            <circle key={f} cx={along(f, side)[0]} cy={along(f, side)[1]} r={0.9} />
+          ))}
+          {[0.3, 0.55, 0.8].map((f) => (
+            <circle key={`button-${f}`} cx={along(f, 0)[0]} cy={along(f, 0)[1]} r={0.55} />
+          ))}
+        </g>
+      ) : null}
       {wear === "scrubs" ? (
         <path
           d={path([along(1, 3.6), along(0.66, 0), along(1, -3.6)], false)}
