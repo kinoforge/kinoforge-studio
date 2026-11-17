@@ -10,18 +10,21 @@ import { FitText } from "../shared/fit-text.ts";
 import { BOARD_FONT, type BoardColors, type BoardTheme, BoardThemes, PAINTS } from "../shared/theme.ts";
 import { Actor3D, ActorMotion, type ActorPlan, ActorPlanner } from "./actor.tsx";
 import { type CameraPlace, type Cover, type Framed, ShotPlanner } from "./camera.ts";
-import { useModelFiles } from "./models.ts";
+import { ClipPoses, useModelFiles } from "./models.ts";
 import {
   type CastMember3D,
   CastScale,
   OFF,
+  type PropPick,
   type RiggedModel,
+  SEAT,
+  SEAT_ACT,
   type SceneModels,
   type Skit3DLine,
   type Skit3DSet,
 } from "./spec.ts";
-import { Ground3D, Props3D, PropSize } from "./stage.tsx";
-import { Stage3DMemory, StageSpots } from "./state.ts";
+import { Ground3D, PropObjects, Props3D, PropSize } from "./stage.tsx";
+import { type PropDims, type PropPlace, Stage3DMemory, StageSpots } from "./state.ts";
 
 export const SKIT3D_COMPOSITION_ID = "Skit3DScene";
 
@@ -75,15 +78,41 @@ export class LineTiming {
   }
 }
 
+interface RigClips {
+  length: (look: string, name: string) => number;
+  settles: (look: string, name: string) => boolean;
+}
+
 class StagePlans {
   static gap(width: number, height: number): number {
     return width >= height ? StageSpots.GAP : StageSpots.TALL_GAP;
   }
 
-  static build(props: Skit3DProps, lengths: (look: string, name: string) => number): ActorPlan[] {
+  static lines(props: Skit3DProps): Skit3DLine[] {
+    return [...(props.history ?? []).map((moment) => moment.line), props.line];
+  }
+
+  static places(props: Skit3DProps, dims: Record<string, PropDims>): Map<PropPick, PropPlace> {
+    const gap = StagePlans.gap(props.width, props.height);
+    const places = new Map<PropPick, PropPlace>();
+    for (const pick of Stage3DMemory.props(props.set, StagePlans.lines(props))) {
+      const size = dims[pick.kind];
+      if (size?.tall) places.set(pick, StageSpots.prop(pick, size, props.set.cast, gap));
+    }
+    return places;
+  }
+
+  static build(
+    props: Skit3DProps,
+    clips: RigClips,
+    places: ReadonlyMap<PropPick, PropPlace>,
+    surface: (pick: PropPick, x: number, z: number) => number | null,
+  ): ActorPlan[] {
     const { set, line, words, seconds } = props;
     const gap = StagePlans.gap(props.width, props.height);
     const state = Stage3DMemory.before(set, (props.history ?? []).map((moment) => moment.line));
+    const seated = [...places].find(([pick]) => pick.spot === SEAT);
+    const seat = seated?.[1] ?? null;
     const { first, last } = LineTiming.spoken(words, seconds);
     const plans = new Map<string, ActorPlan>();
     for (const member of set.cast) {
@@ -93,9 +122,18 @@ class StagePlans {
       const act = Stage3DMemory.act(line, member.id);
       const entering = now.place === OFF && Stage3DMemory.joins(line, member, act?.move);
       const target = act?.move ?? (entering ? member.place : now.place);
+      const slot = seat && model.clips[SEAT_ACT] ? StageSpots.slot(member, set.cast, seat) : null;
+      const wasSeated = slot !== null && now.rest === SEAT_ACT;
+      const sitsDown = slot !== null && !wasSeated && act?.act === SEAT_ACT && !act.move;
       const home = StageSpots.x(member.place, gap);
-      const fromX = now.place === OFF ? StageSpots.wing(member.place, home) : StageSpots.x(now.place, gap);
-      const toX = target === OFF ? StageSpots.wing(member.place, fromX) : StageSpots.x(target, gap);
+      const placeX = now.place === OFF ? StageSpots.wing(member.place, home) : StageSpots.x(now.place, gap);
+      const fromX = wasSeated && slot !== null ? slot : placeX;
+      const toX =
+        target === OFF
+          ? StageSpots.wing(member.place, fromX)
+          : slot !== null && (sitsDown || (wasSeated && !act?.move))
+            ? slot
+            : StageSpots.x(target, gap);
       const walks = Math.abs(toX - fromX) > 0.01;
       const walkStart = walks ? ActorPlanner.MOVE_AT : 0;
       const walkEnd = walks ? walkStart + Math.abs(toX - fromX) / ActorPlanner.WALK_SPEED : 0;
@@ -104,13 +142,15 @@ class StagePlans {
       const at = Math.max(speaks ? first : first + ActorPlanner.REACT, ready);
       const speech = speaks ? { start: Math.max(first, ready), end: Math.max(last, ready + 0.1) } : null;
       const rest = !walks && model.clips[now.rest] ? now.rest : "idle";
+      const after = Stage3DMemory.rest(rest, act?.act, act?.move);
       const spans = ActorPlanner.spans(
         model,
         rest,
         walks ? { start: walkStart, end: walkEnd } : null,
         act?.act ? { action: act.act, at } : null,
         speech,
-        (name) => lengths(member.look, name),
+        (name) => clips.length(member.look, name),
+        (name) => clips.settles(member.look, name),
       );
       plans.set(member.id, {
         member,
@@ -123,6 +163,16 @@ class StagePlans {
         faceAt: at,
         speaking: speaks,
         lookAt: () => null,
+        seat:
+          slot !== null && seat && (wasSeated || sitsDown)
+            ? {
+                x: slot,
+                y: seated ? surface(seated[0], slot, seat.z) : null,
+                z: seat.z,
+                from: wasSeated ? -Infinity : at,
+                to: act?.move ? walkStart : after === SEAT_ACT ? Infinity : at,
+              }
+            : null,
         shown: now.place !== OFF || target !== OFF,
         stays: target !== OFF,
       });
@@ -179,18 +229,11 @@ export class BubbleLayout {
 }
 
 class Framing {
-  static props(props: Skit3DProps): Framed[] {
-    const gap = StagePlans.gap(props.width, props.height);
-    return (props.set.props ?? []).flatMap((pick) => {
-      const model = props.models[pick.kind];
-      const size = model ? PropSize.of(model) : null;
-      if (!size?.tall) return [];
-      const [x] = StageSpots.spot(pick.spot, gap);
-      return [{ x, tall: size.tall, half: size.half }];
-    });
+  static props(places: ReadonlyMap<PropPick, PropPlace>, dims: Record<string, PropDims>): Framed[] {
+    return [...places].map(([pick, place]) => ({ x: place.x, tall: dims[pick.kind]?.tall ?? 0, half: place.wide / 2 }));
   }
 
-  static of(props: Skit3DProps, plans: readonly ActorPlan[], t: number): CameraPlace {
+  static of(props: Skit3DProps, plans: readonly ActorPlan[], t: number, scenery: readonly Framed[]): CameraPlace {
     const shown = plans.filter((plan) => plan.shown && plan.stays);
     const speaker = shown.find((plan) => plan.member.id === props.line.speaker) ?? shown[0];
     const tall = (plan: ActorPlan) => ActorMotion.HEIGHT * CastScale.of(plan.member);
@@ -214,7 +257,7 @@ class Framing {
     const cast: Framed[] = subjects.map((plan) => ({ x: plan.toX, tall: tall(plan) }));
     return ShotPlanner.place(
       shot,
-      shot === "wide" ? [...cast, ...Framing.props(props)] : cast,
+      shot === "wide" ? [...cast, ...scenery] : cast,
       side,
       aspect,
       cover,
@@ -331,18 +374,32 @@ export function Skit3DMomentView(props: Skit3DProps & { t: number }) {
     [props.models],
   );
   const files = useModelFiles(rigs);
-  const plans = useMemo(() => {
-    if (!files) return [];
-    const lengths = (look: string, name: string) => {
-      const model = props.models[look] as RiggedModel | undefined;
-      const clip = model ? files[model.url]?.animations.find((c) => c.name === name) : undefined;
-      return clip?.duration ?? 1;
+  const staged = useMemo(() => {
+    if (!files) return null;
+    const dims = PropSize.all(props.models, files);
+    const places = StagePlans.places(props, dims);
+    const gltf = (look: string) => {
+      const model = props.models[look];
+      return model?.kind === "rig" ? files[model.url] : undefined;
     };
-    return StagePlans.build(props, lengths);
+    const clips: RigClips = {
+      length: (look, name) => gltf(look)?.animations.find((c) => c.name === name)?.duration ?? 1,
+      settles: (look, name) => {
+        const file = gltf(look);
+        return file ? ClipPoses.settles(file, name) : false;
+      },
+    };
+    const surface = (pick: PropPick, x: number, z: number) => {
+      const model = props.models[pick.kind];
+      const place = places.get(pick);
+      return model && place ? PropObjects.surface(model, files, place, x, z) : null;
+    };
+    return { dims, places, plans: StagePlans.build(props, clips, places, surface) };
   }, [files, props]);
-  if (!files) return null;
+  if (!files || !staged) return null;
+  const { dims, places, plans } = staged;
   const palette = BoardThemes.of(props.theme, props.colors);
-  const place = Framing.of(props, plans, t);
+  const place = Framing.of(props, plans, t, Framing.props(places, dims));
   const speaker = props.set.cast.find((member) => member.id === props.line.speaker);
   return (
     <AbsoluteFill>
@@ -355,12 +412,7 @@ export function Skit3DMomentView(props: Skit3DProps & { t: number }) {
       >
         <CameraRig place={place} />
         <Ground3D ground={props.set.ground} palette={palette} />
-        <Props3D
-          props={props.set.props ?? []}
-          models={props.models}
-          files={files}
-          gap={StagePlans.gap(width, height)}
-        />
+        <Props3D props={[...places.keys()]} models={props.models} files={files} places={places} />
         {plans.map((plan) => {
           const model = props.models[plan.member.look] as RiggedModel;
           return (

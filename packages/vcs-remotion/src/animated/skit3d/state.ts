@@ -5,7 +5,9 @@ import {
   type Move,
   OFF,
   type Place,
+  type PropPick,
   type Rest,
+  SEAT,
   type Skit3DLine,
   type Skit3DSet,
   type Spot,
@@ -18,10 +20,26 @@ export interface Member3DState {
 
 export type Stage3DState = Record<string, Member3DState>;
 
+export interface PropDims {
+  tall: number;
+  wide: number;
+  deep: number;
+}
+
+export interface PropPlace {
+  x: number;
+  z: number;
+  turn: number;
+  scale: [number, number, number];
+  wide: number;
+}
+
 export class StageSpots {
   static readonly GAP = 1.7;
   static readonly TALL_GAP = 1.05;
   static readonly ENTRY = 2.8;
+  static readonly SPOT_TURN = 0.35;
+  static readonly SEAT_SPACE = 0.75;
   static readonly PLACES: Record<Place, number> = {
     far_left: -2,
     left: -1,
@@ -30,6 +48,7 @@ export class StageSpots {
     far_right: 2,
   };
   static readonly SPOTS: Record<Spot, [number, number]> = {
+    seat: [0, -0.75],
     back_left: [-1.5, -2.4],
     back_center: [0, -2.6],
     back_right: [1.5, -2.4],
@@ -50,6 +69,32 @@ export class StageSpots {
   static spot(spot: Spot, gap: number): [number, number] {
     const [across, depth] = StageSpots.SPOTS[spot];
     return [across * gap, depth];
+  }
+
+  static prop(pick: PropPick, dims: PropDims, cast: readonly CastMember3D[], gap: number): PropPlace {
+    const [spotX, z] = StageSpots.spot(pick.spot, gap);
+    const across = dims.deep > dims.wide;
+    const base = across ? Math.PI / 2 : 0;
+    const long = Math.max(dims.wide, dims.deep);
+    if (pick.spot !== SEAT || !cast.length) {
+      const turn = base + (spotX === 0 ? 0 : -Math.sign(spotX) * StageSpots.SPOT_TURN);
+      return { x: spotX, z, turn, scale: [1, 1, 1], wide: long };
+    }
+    const homes = cast.map((member) => StageSpots.x(member.place, gap));
+    const stretch = long > 0 ? Math.max(1, (cast.length * StageSpots.SEAT_SPACE) / long) : 1;
+    return {
+      x: (Math.min(...homes) + Math.max(...homes)) / 2,
+      z,
+      turn: base,
+      scale: across ? [1, 1, stretch] : [stretch, 1, 1],
+      wide: long * stretch,
+    };
+  }
+
+  static slot(member: CastMember3D, cast: readonly CastMember3D[], seat: PropPlace): number {
+    const order = [...cast].sort((a, b) => StageSpots.PLACES[a.place] - StageSpots.PLACES[b.place]);
+    const space = Math.min(StageSpots.SEAT_SPACE, seat.wide / Math.max(1, order.length));
+    return seat.x + (order.indexOf(member) - (order.length - 1) / 2) * space;
   }
 }
 
@@ -76,6 +121,11 @@ export class Stage3DMemory {
       next[member.id] = { place, rest: Stage3DMemory.rest(now.rest, act?.act, act?.move) };
     }
     return next;
+  }
+
+  static props(set: Skit3DSet, lines: readonly Skit3DLine[]): PropPick[] {
+    const gone = new Set(lines.flatMap((line) => line.gone ?? []));
+    return (set.props ?? []).filter((pick) => !gone.has(pick.kind));
   }
 
   static rest(now: Rest, act: Action | undefined, move: Move | undefined): Rest {

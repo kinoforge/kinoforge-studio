@@ -14,7 +14,9 @@ export const SKIT3D_LIMITS = {
 } as const;
 
 export const PLACES = ["far_left", "left", "center", "right", "far_right"] as const;
+export const SEAT = "seat";
 export const SPOTS = [
+  SEAT,
   "back_left",
   "back_center",
   "back_right",
@@ -45,7 +47,8 @@ export const ACTIONS = [
   "fall",
   "pick_up",
 ] as const;
-export const HELD = ["sit", "fall"] as const;
+export const SEAT_ACT = "sit";
+export const HELD = [SEAT_ACT, "fall"] as const;
 export const FACES = ["neutral", "happy", "sad", "angry", "surprised"] as const;
 export const SHOTS = ["auto", "close", "two", "wide"] as const;
 export const OFF = "off";
@@ -61,7 +64,7 @@ export const ACTION_CLIPS: Record<(typeof ACTIONS)[number], readonly string[]> =
   no: ["no", "shake", "disagree", "emote-no"],
   think: ["think", "thinking", "ponder"],
   shrug: ["shrug"],
-  cheer: ["cheer", "victory", "celebrate", "win"],
+  cheer: ["cheer", "victory", "celebrate", "win", "clapping", "clap"],
   jump: ["jump"],
   thumbs_up: ["thumbsup", "thumbs_up", "thumbs-up", "like"],
   dance: ["dance", "dancing"],
@@ -135,6 +138,7 @@ export const lineSchema = z.object({
   to: castRef.optional(),
   acts: z.array(actSchema).max(SKIT3D_LIMITS.acts).optional(),
   shot: z.enum(SHOTS).optional(),
+  gone: z.array(picture).max(SKIT3D_LIMITS.props).optional(),
 });
 export type Skit3DLine = z.infer<typeof lineSchema>;
 

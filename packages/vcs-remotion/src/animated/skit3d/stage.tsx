@@ -4,7 +4,7 @@ import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { type BoardPalette, BoardThemes, PAINTS } from "../shared/theme.ts";
 import { ModelFiles, ModelFit } from "./models.ts";
 import type { Ground, ModelPart, PropPick, SceneModel } from "./spec.ts";
-import { StageSpots } from "./state.ts";
+import type { PropDims, PropPlace } from "./state.ts";
 
 interface GroundLook {
   floor: string;
@@ -194,40 +194,59 @@ export class PartShapes {
 }
 
 export class PropSize {
-  static of(model: SceneModel): { tall: number; half: number } {
-    if (model.kind === "file") return { tall: model.tall, half: model.tall / 2 };
-    if (model.kind !== "parts") return { tall: 0, half: 0 };
-    const low = Math.min(...model.parts.map((part) => part.at[1] - part.size[1] / 2));
-    const high = Math.max(...model.parts.map((part) => part.at[1] + part.size[1] / 2));
-    const half = Math.max(...model.parts.map((part) => Math.abs(part.at[0]) + part.size[0] / 2));
-    return { tall: high - low, half };
+  static of(model: SceneModel, files: Record<string, GLTF>): PropDims {
+    if (model.kind === "parts") {
+      const span = (axis: 0 | 1 | 2) =>
+        Math.max(...model.parts.map((part) => part.at[axis] + part.size[axis] / 2)) -
+        Math.min(...model.parts.map((part) => part.at[axis] - part.size[axis] / 2));
+      return { tall: span(1), wide: span(0), deep: span(2) };
+    }
+    if (model.kind !== "file" || !files[model.url]) return { tall: 0, wide: 0, deep: 0 };
+    const size = ModelFit.measure(files[model.url].scene).getSize(new THREE.Vector3());
+    const scale = size.y > 0 ? model.tall / size.y : 1;
+    return { tall: model.tall, wide: size.x * scale, deep: size.z * scale };
+  }
+
+  static all(models: Record<string, SceneModel>, files: Record<string, GLTF>): Record<string, PropDims> {
+    return Object.fromEntries(
+      Object.entries(models).flatMap(([kind, model]) => (model.kind === "rig" ? [] : [[kind, PropSize.of(model, files)]])),
+    );
   }
 }
 
-function Prop3D({
-  pick,
-  model,
-  files,
-  gap,
-}: {
-  pick: PropPick;
-  model: SceneModel;
-  files: Record<string, GLTF>;
-  gap: number;
-}) {
-  const object = useMemo(() => {
+export class PropObjects {
+  static build(model: SceneModel, files: Record<string, GLTF>): THREE.Object3D | null {
     if (model.kind === "parts") return PartShapes.build(model.parts);
-    if (model.kind === "file") {
+    if (model.kind === "file" && files[model.url]) {
       const root = ModelFiles.copy(files[model.url]);
       ModelFit.shadows(root);
       return ModelFit.standOn(root, model.tall);
     }
     return null;
-  }, [model, files]);
+  }
+
+  static place(object: THREE.Object3D, place: PropPlace): void {
+    object.position.set(place.x, 0, place.z);
+    object.rotation.y = place.turn;
+    object.scale.set(...place.scale);
+  }
+
+  static surface(model: SceneModel, files: Record<string, GLTF>, place: PropPlace, x: number, z: number): number | null {
+    const object = PropObjects.build(model, files);
+    if (!object) return null;
+    PropObjects.place(object, place);
+    object.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster(new THREE.Vector3(x, PropObjects.ABOVE, z), new THREE.Vector3(0, -1, 0));
+    return ray.intersectObject(object, true)[0]?.point.y ?? null;
+  }
+
+  static readonly ABOVE = 50;
+}
+
+function Prop3D({ model, files, place }: { model: SceneModel; files: Record<string, GLTF>; place: PropPlace }) {
+  const object = useMemo(() => PropObjects.build(model, files), [model, files]);
   if (!object) return null;
-  const [x, z] = StageSpots.spot(pick.spot, gap);
-  object.position.set(x, 0, z);
-  object.rotation.y = x === 0 ? 0 : -Math.sign(x) * 0.35;
+  PropObjects.place(object, place);
   return <primitive object={object} />;
 }
 
@@ -235,18 +254,19 @@ export function Props3D({
   props,
   models,
   files,
-  gap,
+  places,
 }: {
   props: readonly PropPick[];
   models: Record<string, SceneModel>;
   files: Record<string, GLTF>;
-  gap: number;
+  places: ReadonlyMap<PropPick, PropPlace>;
 }) {
   return (
     <>
       {props.map((pick, i) => {
         const model = models[pick.kind];
-        return model ? <Prop3D key={`${pick.kind}-${i}`} pick={pick} model={model} files={files} gap={gap} /> : null;
+        const place = places.get(pick);
+        return model && place ? <Prop3D key={`${pick.kind}-${i}`} model={model} files={files} place={place} /> : null;
       })}
     </>
   );

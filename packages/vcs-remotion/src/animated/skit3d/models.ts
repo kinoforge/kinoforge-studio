@@ -20,6 +20,46 @@ export class ModelFiles {
   }
 }
 
+export class ClipPoses {
+  static readonly HIPS = /hips|pelvis/i;
+  static readonly MOVED = 0.15;
+  private static readonly settled = new WeakMap<GLTF, Map<string, boolean>>();
+
+  static hips(root: THREE.Object3D): THREE.Object3D | null {
+    let found: THREE.Object3D | null = null;
+    root.traverse((node) => {
+      if (!found && (node as THREE.Bone).isBone && ClipPoses.HIPS.test(node.name)) found = node;
+    });
+    return found;
+  }
+
+  static settles(gltf: GLTF, name: string): boolean {
+    const known = ClipPoses.settled.get(gltf) ?? new Map<string, boolean>();
+    ClipPoses.settled.set(gltf, known);
+    const cached = known.get(name);
+    if (cached !== undefined) return cached;
+    const clip = gltf.animations.find((entry) => entry.name === name);
+    const root = ModelFiles.copy(gltf);
+    const hips = ClipPoses.hips(root);
+    let moved = false;
+    if (clip && hips) {
+      const tall = ModelFit.measure(root).getSize(new THREE.Vector3()).y;
+      const mixer = new THREE.AnimationMixer(root);
+      const action = mixer.clipAction(clip);
+      action.play();
+      const pose = (time: number) => {
+        action.time = time;
+        mixer.update(0);
+        root.updateMatrixWorld(true);
+        return hips.getWorldPosition(new THREE.Vector3());
+      };
+      moved = pose(0).distanceTo(pose(clip.duration - 0.001)) > ClipPoses.MOVED * tall;
+    }
+    known.set(name, moved);
+    return moved;
+  }
+}
+
 export function useModelFiles(urls: readonly string[]): Record<string, GLTF> | null {
   const key = [...new Set(urls)].sort().join("\n");
   const [files, setFiles] = useState<Record<string, GLTF> | null>(key ? null : {});

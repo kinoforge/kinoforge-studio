@@ -4,8 +4,16 @@ import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { CaptionWord } from "../../captions.ts";
 import { Ease } from "../shared/ease.ts";
 import { PAINTS } from "../shared/theme.ts";
-import { ModelFiles, ModelFit } from "./models.ts";
-import { type Action, type CastMember3D, CastScale, type Face, type Rest, type RiggedModel } from "./spec.ts";
+import { ClipPoses, ModelFiles, ModelFit } from "./models.ts";
+import {
+  type Action,
+  type CastMember3D,
+  CastScale,
+  type Face,
+  type Rest,
+  type RiggedModel,
+  SEAT_ACT,
+} from "./spec.ts";
 import { Stage3DMemory } from "./state.ts";
 
 export interface ClipSpan {
@@ -26,6 +34,7 @@ export interface ActorPlan {
   faceAt: number;
   speaking: boolean;
   lookAt: (t: number) => number | null;
+  seat: { x: number; y: number | null; z: number; from: number; to: number } | null;
   shown: boolean;
   stays: boolean;
 }
@@ -33,6 +42,8 @@ export interface ActorPlan {
 export class ActorMotion {
   static readonly BLEND = 0.3;
   static readonly TURN_SECONDS = 0.35;
+  static readonly SEAT_SECONDS = 0.6;
+  static readonly THIGH = 0.06;
   static readonly FACING = 1.2;
   static readonly WALKING = Math.PI / 2;
   static readonly HEIGHT = 1.75;
@@ -55,11 +66,18 @@ export class ActorMotion {
     const x = ActorMotion.x(plan, t);
     if (ActorMotion.walking(plan, t)) return Math.sign(plan.toX - plan.fromX) * ActorMotion.WALKING;
     const target = plan.lookAt(t);
-    const facing = target === null || Math.abs(target - x) < 0.05 ? 0 : Math.sign(target - x) * ActorMotion.FACING;
+    const toward = target === null || Math.abs(target - x) < 0.05 ? 0 : Math.sign(target - x) * ActorMotion.FACING;
+    const facing = toward * (1 - ActorMotion.seated(plan, t, ActorMotion.TURN_SECONDS));
     if (plan.walkEnd <= plan.walkStart || t < plan.walkEnd) return facing;
     const k = Ease.inOut(t - plan.walkEnd, ActorMotion.TURN_SECONDS);
     const walked = Math.sign(plan.toX - plan.fromX) * ActorMotion.WALKING;
     return walked + (facing - walked) * k;
+  }
+
+  static seated(plan: ActorPlan, t: number, seconds: number): number {
+    if (!plan.seat) return 0;
+    const { from, to } = plan.seat;
+    return Ease.inOut(t - from, seconds) * (1 - Ease.inOut(t - to, seconds));
   }
 
   static current(spans: readonly ClipSpan[], t: number): { now: ClipSpan; before: ClipSpan | null } {
@@ -96,6 +114,7 @@ interface Rig {
   head: THREE.Object3D | null;
   body: THREE.Object3D | null;
   rest: Map<THREE.Object3D, THREE.Quaternion>;
+  seated: THREE.Vector3 | null;
 }
 
 class RigBuilder {
@@ -124,7 +143,24 @@ class RigBuilder {
     });
     const rest = new Map<THREE.Object3D, THREE.Quaternion>();
     for (const bone of [head, body]) if (bone) rest.set(bone, (bone as THREE.Object3D).quaternion.clone());
-    return { holder, root, mixer, actions, morphs, head, body, rest };
+    const seated = RigBuilder.seated(holder, mixer, actions.get(model.clips[SEAT_ACT] ?? ""));
+    return { holder, root, mixer, actions, morphs, head, body, rest, seated };
+  }
+
+  static seated(
+    holder: THREE.Group,
+    mixer: THREE.AnimationMixer,
+    action: THREE.AnimationAction | undefined,
+  ): THREE.Vector3 | null {
+    const hips = ClipPoses.hips(holder);
+    if (!action || !hips) return null;
+    action.time = action.getClip().duration - 0.001;
+    action.setEffectiveWeight(1);
+    mixer.update(0);
+    holder.updateMatrixWorld(true);
+    const at = hips.getWorldPosition(new THREE.Vector3());
+    action.setEffectiveWeight(0);
+    return at;
   }
 
   static readonly HEAD = /head/i;
@@ -195,7 +231,14 @@ export function Actor3D({
     if (model.mouth && dict[model.mouth] !== undefined) levels[dict[model.mouth]] = mouthLevel;
   }
 
-  rig.holder.position.set(ActorMotion.x(plan, t), 0, 0);
+  const x = ActorMotion.x(plan, t);
+  const sitting = ActorMotion.seated(plan, t, ActorMotion.SEAT_SECONDS);
+  const hips = rig.seated ?? new THREE.Vector3();
+  const seatX = plan.seat ? plan.seat.x - hips.x : x;
+  const seatZ = plan.seat ? plan.seat.z - hips.z : 0;
+  const tall = ActorMotion.HEIGHT * CastScale.of(plan.member);
+  const lift = plan.seat?.y != null && rig.seated ? plan.seat.y - (hips.y - ActorMotion.THIGH * tall) : 0;
+  rig.holder.position.set(x + (seatX - x) * sitting, lift * sitting, seatZ * sitting);
   rig.holder.rotation.y = ActorMotion.turn(plan, t);
   rig.holder.visible = plan.shown;
   return <primitive object={rig.holder} />;
@@ -214,11 +257,13 @@ export class ActorPlanner {
     act: { action: Action; at: number } | null,
     speech: { start: number; end: number } | null,
     clipLength: (name: string) => number,
+    settles: (name: string) => boolean,
   ): ClipSpan[] {
     const clip = (action: string) => model.clips[action];
+    const loops = (action: string, name: string) => ActorMotion.LOOPS.has(action) && !settles(name);
     const resting = (start: number, pose: Rest): ClipSpan => {
       const name = clip(pose) ?? clip("idle") ?? Object.values(model.clips)[0] ?? "";
-      const lying = pose !== "idle" && !!clip(pose) && !ActorMotion.LOOPS.has(pose);
+      const lying = pose !== "idle" && !!clip(pose) && !loops(pose, name);
       return { start, name, loop: !lying, hold: lying };
     };
     const after = act ? Stage3DMemory.rest(rest, act.action, undefined) : rest;
@@ -238,7 +283,7 @@ export class ActorPlanner {
       if (after !== rest) spans.push(resting(act.at, after));
       return spans.sort((a, b) => a.start - b.start);
     }
-    const loop = ActorMotion.LOOPS.has(act.action);
+    const loop = loops(act.action, name);
     spans.push({ start: act.at, name, loop });
     const ends = act.at + clipLength(name);
     if (!loop && !Stage3DMemory.held(act.action)) {
