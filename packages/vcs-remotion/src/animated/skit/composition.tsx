@@ -312,7 +312,7 @@ interface Span {
 }
 
 class CastSpacing {
-  static readonly GAP = Rig.UPPER + Rig.FORE + Rig.HEAD;
+  static readonly GAP = Rig.UPPER + Rig.FORE + Rig.HEAD * 2;
   static readonly PASSES = 4;
 
   static spread(placed: Placed[], unit: number, room: { left: number; right: number }) {
