@@ -24,6 +24,12 @@ import {
   skitCalcMeta,
 } from "./animated/skit/composition.tsx";
 import {
+  DEFAULT_SKIT3D_PROPS,
+  SKIT3D_COMPOSITION_ID,
+  Skit3DScene,
+  skit3dCalcMeta,
+} from "./animated/skit3d/composition.tsx";
+import {
   DEFAULT_STORY_PROPS,
   STORY_COMPOSITION_ID,
   StoryVideo,
@@ -82,6 +88,16 @@ export function RemotionRoot() {
         height={1920}
         defaultProps={DEFAULT_SKIT_PROPS}
         calculateMetadata={skitCalcMeta}
+      />
+      <Composition
+        id={SKIT3D_COMPOSITION_ID}
+        component={Skit3DScene}
+        durationInFrames={120}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={DEFAULT_SKIT3D_PROPS}
+        calculateMetadata={skit3dCalcMeta}
       />
     </>
   );

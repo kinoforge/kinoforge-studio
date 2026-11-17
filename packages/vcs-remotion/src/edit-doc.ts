@@ -15,6 +15,12 @@ import {
 import { SKIT_COMPOSITION_ID } from "./animated/skit/composition.tsx";
 import { motionSchema } from "./animated/skit/motion.ts";
 import { DRAWS, lineSchema, setSchema } from "./animated/skit/spec.ts";
+import { SKIT3D_COMPOSITION_ID } from "./animated/skit3d/composition.tsx";
+import {
+  lineSchema as skit3dLineSchema,
+  modelsSchema,
+  setSchema as skit3dSetSchema,
+} from "./animated/skit3d/spec.ts";
 import { CAPTION_POSITIONS, STORY_COMPOSITION_ID } from "./story-composition.tsx";
 
 const caption = z.object({ start: z.number(), end: z.number(), text: z.string() });
@@ -135,6 +141,28 @@ const skitInput = z.object({
     .optional(),
 });
 
+const skit3dInput = z.object({
+  fps: z.number().positive(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  seconds: z.number().positive(),
+  set: skit3dSetSchema,
+  line: skit3dLineSchema,
+  text: z.string().max(600),
+  words: z.array(captionWord),
+  models: modelsSchema,
+  history: z
+    .array(z.object({ line: skit3dLineSchema, text: z.string().max(600) }))
+    .optional(),
+  theme: boardThemeSchema.optional(),
+  colors: boardColorsSchema.nullable().optional(),
+  reserve: z.enum(CAPTION_RESERVES).optional(),
+  language: z
+    .string()
+    .regex(/^[a-z]{2}$/)
+    .optional(),
+});
+
 export type EditDoc =
   | { compositionId: typeof CLIP_COMPOSITION_ID; inputProps: z.infer<typeof clipInput> }
   | { compositionId: typeof CAPTIONED_COMPOSITION_ID; inputProps: z.infer<typeof captionedInput> }
@@ -143,7 +171,8 @@ export type EditDoc =
       compositionId: typeof EXPLAINER_COMPOSITION_ID;
       inputProps: z.infer<typeof explainerInput>;
     }
-  | { compositionId: typeof SKIT_COMPOSITION_ID; inputProps: z.infer<typeof skitInput> };
+  | { compositionId: typeof SKIT_COMPOSITION_ID; inputProps: z.infer<typeof skitInput> }
+  | { compositionId: typeof SKIT3D_COMPOSITION_ID; inputProps: z.infer<typeof skit3dInput> };
 
 export class EditDocs {
   private static readonly schemas = {
@@ -152,7 +181,14 @@ export class EditDocs {
     [STORY_COMPOSITION_ID]: storyInput,
     [EXPLAINER_COMPOSITION_ID]: explainerInput,
     [SKIT_COMPOSITION_ID]: skitInput,
+    [SKIT3D_COMPOSITION_ID]: skit3dInput,
   } as const;
+
+  static readonly WEBGL: ReadonlySet<string> = new Set([SKIT3D_COMPOSITION_ID]);
+
+  static webgl(compositionId: string): boolean {
+    return EditDocs.WEBGL.has(compositionId);
+  }
 
   static parse(compositionId: string, inputProps: unknown): EditDoc {
     if (!EditDocs.known(compositionId)) throw new Error(`unknown compositionId: ${compositionId}`);

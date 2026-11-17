@@ -15,6 +15,7 @@ import {
   ExplainerKit,
   STORY_COMPOSITION_ID,
   SkitKit,
+  Skit3DKit,
   type StoryVideoProps,
   fitRequestSchema,
 } from "@vcs/remotion";
@@ -170,7 +171,11 @@ app.get("/health", (_req: Request, res: Response) => {
   res.json({ ok: true, service: "vcs-editor-service" });
 });
 
-const KITS = { explainer: ExplainerKit.describe(), skit: SkitKit.describe() };
+const KITS = {
+  explainer: ExplainerKit.describe(),
+  skit: SkitKit.describe(),
+  skit3d: Skit3DKit.describe(),
+};
 app.get("/v1/kits/animated/:mode", (req: Request, res: Response) => {
   const kit = KITS[req.params.mode as keyof typeof KITS];
   if (!kit) return res.status(404).json({ ok: false, error: "no such kit" });

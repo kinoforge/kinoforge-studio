@@ -9,6 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REMOTION_ENTRY = path.join(__dirname, "remotion-entry.ts");
 // Browser tabs painting frames at once; Remotion's own default is half the cores.
 const CONCURRENCY = Number(process.env.RENDER_CONCURRENCY) || null;
+const WEBGL = { gl: "swangle", disableWebSecurity: true } as const;
 
 /**
  * The Remotion render backend. The only file that imports @remotion/*, so the
@@ -33,7 +34,12 @@ export class RemotionDriver implements RenderDriver {
     const { compositionId, inputProps } = EditDocs.parse(job.compositionId, job.inputProps);
     const serveUrl = await this.getBundle();
     const codec = job.codec ?? "h264";
-    const composition = await selectComposition({ serveUrl, id: compositionId, inputProps });
+    const composition = await selectComposition({
+      serveUrl,
+      id: compositionId,
+      inputProps,
+      chromiumOptions: EditDocs.webgl(compositionId) ? WEBGL : {},
+    });
     await renderMedia({
       composition,
       serveUrl,
@@ -42,6 +48,7 @@ export class RemotionDriver implements RenderDriver {
       x264Preset: codec === "h264" ? "veryfast" : null,
       inputProps,
       outputLocation,
+      chromiumOptions: EditDocs.webgl(compositionId) ? WEBGL : {},
       metadata: job.metadata ?? null,
     });
   }

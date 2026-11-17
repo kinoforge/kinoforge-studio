@@ -12,14 +12,18 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@react-three/fiber": "^9.8.2",
+    "@remotion/three": "4.0.543",
     "lucide-react": "^1.33.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "remotion": "^4.0.0",
+    "three": "0.170.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
+    "@types/three": "0.170.0",
     "typescript": "^5.6.0"
   }
 }
