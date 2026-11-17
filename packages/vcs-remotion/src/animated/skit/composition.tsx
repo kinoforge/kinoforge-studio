@@ -24,7 +24,15 @@ import { SetPiece } from "./props.tsx";
 import { ReactionMark, ReactionTiming } from "./reactions.tsx";
 import { Chair, DeskSet, type FigureFrame, POSE_SPECS, PoseMix, Rig, StickFigure } from "./rig.tsx";
 import type { SkitMotion } from "./motion.ts";
-import { type CastMember, type Draw, type Move, OFF, type SkitLine, type SkitSet } from "./spec.ts";
+import {
+  type CastMember,
+  type Draw,
+  FigureScale,
+  type Move,
+  OFF,
+  type SkitLine,
+  type SkitSet,
+} from "./spec.ts";
 import { CardMemory, type CardState, type MemberState, SkitMemory, SkitPlaces } from "./state.ts";
 
 export const SKIT_COMPOSITION_ID = "SkitScene";
@@ -515,7 +523,8 @@ function SetLayer({
   CastSpacing.spread(placed, u, view.room);
   const headOf = (entry: Placed) => {
     const [hx, hy] = Rig.head(entry.frame.pose, entry.frame.sit);
-    return { x: entry.x + hx * u * Math.sign(entry.dir), y: view.floor + hy * u };
+    const k = u * FigureScale.of(entry.member);
+    return { x: entry.x + hx * k * Math.sign(entry.dir), y: view.floor + hy * k };
   };
   const room = { ...view.room, width: view.room.right - view.room.left };
   const { first } = SkitTiming.spoken(words, seconds);
@@ -530,9 +539,10 @@ function SetLayer({
         const state = before.members[lastSpeaker.id];
         const x = CastMotion.x(lastSpeaker, state.place, span);
         const head = Rig.head(POSE_SPECS[state.pose], state.stance === "sit" ? 1 : 0);
+        const k = u * FigureScale.of(lastSpeaker);
         return {
-          x: x + head[0] * u * state.facing,
-          y: view.floor + (head[1] - Rig.HEAD - 5) * u,
+          x: x + head[0] * k * state.facing,
+          y: view.floor + (head[1] - Rig.HEAD - 5) * k,
         };
       })()
     : null;
@@ -592,7 +602,7 @@ function SetLayer({
         {chairs.map((member) => (
           <g
             key={`chair-${member.id}`}
-            transform={`translate(${anchorX(member)} ${view.floor}) scale(${u * SkitMemory.facing(member.place)} ${u})`}
+            transform={`translate(${anchorX(member)} ${view.floor}) scale(${u * FigureScale.of(member) * SkitMemory.facing(member.place)} ${u * FigureScale.of(member)})`}
           >
             <Chair ink={palette.muted} />
           </g>
@@ -602,7 +612,7 @@ function SetLayer({
           .map((entry) => (
             <g
               key={entry.member.id}
-              transform={`translate(${entry.x} ${view.floor}) scale(${u * entry.dir} ${u})`}
+              transform={`translate(${entry.x} ${view.floor}) scale(${u * FigureScale.of(entry.member) * entry.dir} ${u * FigureScale.of(entry.member)})`}
             >
               <StickFigure
                 member={entry.member}
@@ -688,7 +698,10 @@ function SetLayer({
           leave={-1}
           spot={(() => {
             const head = headOf(speaking);
-            return { x: head.x, y: head.y - (Rig.HEAD + 5) * u };
+            return {
+              x: head.x,
+              y: head.y - (Rig.HEAD + 5) * u * FigureScale.of(speaking.member),
+            };
           })()}
           room={room}
           frame={layout.frame}

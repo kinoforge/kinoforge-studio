@@ -26,7 +26,7 @@ import {
 } from "./spec.ts";
 
 export class SkitKit {
-  static readonly VERSION = 5;
+  static readonly VERSION = 6;
   static readonly CHANGE = "CHANGE";
 
   static changes(): string[] {

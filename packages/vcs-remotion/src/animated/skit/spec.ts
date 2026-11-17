@@ -23,6 +23,8 @@ export const SKIT_LIMITS = {
 
 export const PLACES = ["far_left", "left", "center", "right", "far_right"] as const;
 export const STANCES = ["stand", "sit"] as const;
+export const AGES = ["child", "teen", "adult", "elder"] as const;
+export const HEIGHTS = ["short", "average", "tall"] as const;
 export const WEARS = [
   "tee",
   "hoodie",
@@ -179,11 +181,31 @@ export const castSchema = z.object({
   colour: z.enum(PAINT_NAMES),
   place: z.enum(PLACES),
   stance: z.enum(STANCES),
+  age: z.enum(AGES).optional(),
+  height: z.enum(HEIGHTS).optional(),
   desk: z.enum(DESKS).optional(),
   holds: picture.optional(),
   enters: z.boolean().optional(),
 });
 export type CastMember = z.infer<typeof castSchema>;
+
+export class FigureScale {
+  static readonly AGE: Record<(typeof AGES)[number], number> = {
+    child: 0.68,
+    teen: 0.9,
+    adult: 1,
+    elder: 0.96,
+  };
+  static readonly HEIGHT: Record<(typeof HEIGHTS)[number], number> = {
+    short: 0.92,
+    average: 1,
+    tall: 1.08,
+  };
+
+  static of(member: CastMember): number {
+    return FigureScale.AGE[member.age ?? "adult"] * FigureScale.HEIGHT[member.height ?? "average"];
+  }
+}
 
 export const fieldSchema = z.object({
   id: slug,
