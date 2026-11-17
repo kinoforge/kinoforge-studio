@@ -5,12 +5,14 @@ import type { CaptionWord } from "../../captions.ts";
 import { Ease } from "../shared/ease.ts";
 import { PAINTS } from "../shared/theme.ts";
 import { ModelFiles, ModelFit } from "./models.ts";
-import { type Action, type CastMember3D, CastScale, type Face, type RiggedModel } from "./spec.ts";
+import { type Action, type CastMember3D, CastScale, type Face, type Rest, type RiggedModel } from "./spec.ts";
+import { Stage3DMemory } from "./state.ts";
 
 export interface ClipSpan {
   start: number;
   name: string;
   loop: boolean;
+  hold?: boolean;
 }
 
 export interface ActorPlan {
@@ -31,7 +33,7 @@ export interface ActorPlan {
 export class ActorMotion {
   static readonly BLEND = 0.3;
   static readonly TURN_SECONDS = 0.35;
-  static readonly FACING = 0.95;
+  static readonly FACING = 1.2;
   static readonly WALKING = Math.PI / 2;
   static readonly HEIGHT = 1.75;
   static readonly LOOPS: ReadonlySet<string> = new Set(["idle", "talk", "walk", "dance", "sit"]);
@@ -165,7 +167,7 @@ export function Actor3D({
     if (!action) return;
     const length = action.getClip().duration;
     const local = Math.max(0, t - span.start);
-    action.time = span.loop ? local % length : Math.min(local, length - 0.001);
+    action.time = span.hold ? length - 0.001 : span.loop ? local % length : Math.min(local, length - 0.001);
     action.setEffectiveWeight(weight);
   };
   drive(now, blend);
@@ -207,37 +209,44 @@ export class ActorPlanner {
 
   static spans(
     model: RiggedModel,
-    rest: "idle" | "sit",
+    rest: Rest,
     walk: { start: number; end: number } | null,
     act: { action: Action; at: number } | null,
     speech: { start: number; end: number } | null,
     clipLength: (name: string) => number,
   ): ClipSpan[] {
     const clip = (action: string) => model.clips[action];
-    const restName = clip(rest) ?? clip("idle") ?? Object.values(model.clips)[0] ?? "";
-    const spans: ClipSpan[] = [{ start: 0, name: restName, loop: true }];
-    const talkName = clip("talk");
+    const resting = (start: number, pose: Rest): ClipSpan => {
+      const name = clip(pose) ?? clip("idle") ?? Object.values(model.clips)[0] ?? "";
+      const lying = pose !== "idle" && !!clip(pose) && !ActorMotion.LOOPS.has(pose);
+      return { start, name, loop: !lying, hold: lying };
+    };
+    const after = act ? Stage3DMemory.rest(rest, act.action, undefined) : rest;
+    const spans: ClipSpan[] = [resting(0, rest)];
+    const talkName = rest === "idle" ? clip("talk") : undefined;
     if (walk && clip("walk")) {
       spans.push({ start: walk.start, name: clip("walk"), loop: true });
-      spans.push({ start: walk.end, name: restName, loop: true });
+      spans.push(resting(walk.end, rest));
     }
     if (speech && talkName && !act) {
       spans.push({ start: speech.start, name: talkName, loop: true });
-      spans.push({ start: speech.end, name: restName, loop: true });
+      spans.push(resting(speech.end, rest));
     }
-    if (act && act.action !== "idle") {
-      const name = act.action === "talk" ? talkName : clip(act.action);
-      if (name) {
-        const loop = ActorMotion.LOOPS.has(act.action);
-        spans.push({ start: act.at, name, loop });
-        if (!loop) {
-          const after = speech && talkName && act.at + clipLength(name) < speech.end ? talkName : restName;
-          spans.push({ start: act.at + clipLength(name), name: after, loop: true });
-          if (after === talkName && speech) spans.push({ start: speech.end, name: restName, loop: true });
-        } else if (act.action === "talk" && speech) {
-          spans.push({ start: speech.end, name: restName, loop: true });
-        }
-      }
+    if (!act) return spans.sort((a, b) => a.start - b.start);
+    const name = act.action === "talk" ? (talkName ?? clip("talk")) : clip(act.action);
+    if (act.action === "idle" || !name) {
+      if (after !== rest) spans.push(resting(act.at, after));
+      return spans.sort((a, b) => a.start - b.start);
+    }
+    const loop = ActorMotion.LOOPS.has(act.action);
+    spans.push({ start: act.at, name, loop });
+    const ends = act.at + clipLength(name);
+    if (!loop && !Stage3DMemory.held(act.action)) {
+      const talks = !!speech && !!clip("talk") && after === "idle" && ends < speech.end;
+      spans.push(talks ? { start: ends, name: clip("talk"), loop: true } : resting(ends, after));
+      if (talks && speech) spans.push(resting(speech.end, after));
+    } else if (act.action === "talk" && speech) {
+      spans.push(resting(speech.end, after));
     }
     return spans.sort((a, b) => a.start - b.start);
   }

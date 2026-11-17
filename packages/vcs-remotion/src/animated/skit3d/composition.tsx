@@ -9,7 +9,7 @@ import { Ease } from "../shared/ease.ts";
 import { FitText } from "../shared/fit-text.ts";
 import { BOARD_FONT, type BoardColors, type BoardTheme, BoardThemes, PAINTS } from "../shared/theme.ts";
 import { Actor3D, ActorMotion, type ActorPlan, ActorPlanner } from "./actor.tsx";
-import { type CameraPlace, type Cover, ShotPlanner } from "./camera.ts";
+import { type CameraPlace, type Cover, type Framed, ShotPlanner } from "./camera.ts";
 import { useModelFiles } from "./models.ts";
 import {
   type CastMember3D,
@@ -20,7 +20,7 @@ import {
   type Skit3DLine,
   type Skit3DSet,
 } from "./spec.ts";
-import { Ground3D, Props3D } from "./stage.tsx";
+import { Ground3D, Props3D, PropSize } from "./stage.tsx";
 import { Stage3DMemory, StageSpots } from "./state.ts";
 
 export const SKIT3D_COMPOSITION_ID = "Skit3DScene";
@@ -103,7 +103,7 @@ class StagePlans {
       const ready = walks ? walkEnd + ActorPlanner.SETTLE : 0;
       const at = Math.max(speaks ? first : first + ActorPlanner.REACT, ready);
       const speech = speaks ? { start: Math.max(first, ready), end: Math.max(last, ready + 0.1) } : null;
-      const rest = now.sits && !walks && model.clips.sit ? "sit" : "idle";
+      const rest = !walks && model.clips[now.rest] ? now.rest : "idle";
       const spans = ActorPlanner.spans(
         model,
         rest,
@@ -179,6 +179,17 @@ export class BubbleLayout {
 }
 
 class Framing {
+  static props(props: Skit3DProps): Framed[] {
+    const gap = StagePlans.gap(props.width, props.height);
+    return (props.set.props ?? []).flatMap((pick) => {
+      const model = props.models[pick.kind];
+      const size = model ? PropSize.of(model) : null;
+      if (!size?.tall) return [];
+      const [x] = StageSpots.spot(pick.spot, gap);
+      return [{ x, tall: size.tall, half: size.half }];
+    });
+  }
+
   static of(props: Skit3DProps, plans: readonly ActorPlan[], t: number): CameraPlace {
     const shown = plans.filter((plan) => plan.shown && plan.stays);
     const speaker = shown.find((plan) => plan.member.id === props.line.speaker) ?? shown[0];
@@ -200,9 +211,10 @@ class Framing {
     const subjects =
       shot === "close" ? [speaker] : shot === "two" && partner ? [speaker, partner] : shown;
     const side = partner ? Math.sign(partner.toX - speaker.toX) : 0;
+    const cast: Framed[] = subjects.map((plan) => ({ x: plan.toX, tall: tall(plan) }));
     return ShotPlanner.place(
       shot,
-      subjects.map((plan) => ({ x: plan.toX, tall: tall(plan) })),
+      shot === "wide" ? [...cast, ...Framing.props(props)] : cast,
       side,
       aspect,
       cover,
@@ -343,7 +355,12 @@ export function Skit3DMomentView(props: Skit3DProps & { t: number }) {
       >
         <CameraRig place={place} />
         <Ground3D ground={props.set.ground} palette={palette} />
-        <Props3D props={props.set.props ?? []} models={props.models} files={files} />
+        <Props3D
+          props={props.set.props ?? []}
+          models={props.models}
+          files={files}
+          gap={StagePlans.gap(width, height)}
+        />
         {plans.map((plan) => {
           const model = props.models[plan.member.look] as RiggedModel;
           return (

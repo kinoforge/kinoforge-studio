@@ -3,6 +3,7 @@ import type { Shot } from "./spec.ts";
 export interface Framed {
   x: number;
   tall: number;
+  half?: number;
 }
 
 export interface CameraPlace {
@@ -54,19 +55,20 @@ export class ShotPlanner {
     const tallest = Math.max(...subjects.map((s) => s.tall));
     const top = tallest * (1 + ShotPlanner.HEAD_ROOM);
     const bottom = shot === "close" ? tallest * ShotPlanner.CLOSE_FROM : 0;
-    const left = Math.min(...subjects.map((s) => s.x - s.tall * ShotPlanner.BODY)) - ShotPlanner.MARGIN;
-    const right = Math.max(...subjects.map((s) => s.x + s.tall * ShotPlanner.BODY)) + ShotPlanner.MARGIN;
+    const half = (s: Framed) => s.half ?? s.tall * ShotPlanner.BODY;
+    const left = Math.min(...subjects.map((s) => s.x - half(s))) - ShotPlanner.MARGIN;
+    const right = Math.max(...subjects.map((s) => s.x + half(s))) + ShotPlanner.MARGIN;
     const width = right - left;
     const height = top - bottom;
     const clear = Math.max(ShotPlanner.LEAST_CLEAR, 1 - cover.top - cover.bottom);
-    const half = (ShotPlanner.FOV * Math.PI) / 360;
-    const across = Math.atan(Math.tan(half) * aspect);
+    const fov = (ShotPlanner.FOV * Math.PI) / 360;
+    const across = Math.atan(Math.tan(fov) * aspect);
     const room = ShotPlanner.ROOM[shot];
-    const fits = Math.max(width / 2 / Math.tan(across), height / clear / 2 / Math.tan(half)) * room;
-    const most = (ShotPlanner.MOST_SEEN * tallest) / clear / 2 / Math.tan(half);
+    const fits = Math.max(width / 2 / Math.tan(across), height / clear / 2 / Math.tan(fov)) * room;
+    const most = (ShotPlanner.MOST_SEEN * tallest) / clear / 2 / Math.tan(fov);
     const capped = fits > most;
     const distance = Math.min(fits, most) * (1 - ShotPlanner.PUSH * progress);
-    const seen = 2 * distance * Math.tan(half);
+    const seen = 2 * distance * Math.tan(fov);
     const middle = (left + right) / 2;
     const centre = capped ? middle + (subjects[0].x - middle) * ShotPlanner.LEAN : middle;
     const lookY = bottom + height / 2 - ((cover.bottom - cover.top) / 2) * seen;

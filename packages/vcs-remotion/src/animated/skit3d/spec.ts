@@ -45,6 +45,7 @@ export const ACTIONS = [
   "fall",
   "pick_up",
 ] as const;
+export const HELD = ["sit", "fall"] as const;
 export const FACES = ["neutral", "happy", "sad", "angry", "surprised"] as const;
 export const SHOTS = ["auto", "close", "two", "wide"] as const;
 export const OFF = "off";
@@ -84,6 +85,7 @@ export type Place = (typeof PLACES)[number];
 export type Spot = (typeof SPOTS)[number];
 export type Ground = (typeof GROUNDS)[number];
 export type Action = (typeof ACTIONS)[number];
+export type Rest = "idle" | (typeof HELD)[number];
 export type Face = (typeof FACES)[number];
 export type Shot = (typeof SHOTS)[number];
 export type Move = (typeof MOVES)[number];

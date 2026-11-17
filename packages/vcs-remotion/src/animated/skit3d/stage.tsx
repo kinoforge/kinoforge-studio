@@ -193,7 +193,28 @@ export class PartShapes {
   }
 }
 
-function Prop3D({ pick, model, files }: { pick: PropPick; model: SceneModel; files: Record<string, GLTF> }) {
+export class PropSize {
+  static of(model: SceneModel): { tall: number; half: number } {
+    if (model.kind === "file") return { tall: model.tall, half: model.tall / 2 };
+    if (model.kind !== "parts") return { tall: 0, half: 0 };
+    const low = Math.min(...model.parts.map((part) => part.at[1] - part.size[1] / 2));
+    const high = Math.max(...model.parts.map((part) => part.at[1] + part.size[1] / 2));
+    const half = Math.max(...model.parts.map((part) => Math.abs(part.at[0]) + part.size[0] / 2));
+    return { tall: high - low, half };
+  }
+}
+
+function Prop3D({
+  pick,
+  model,
+  files,
+  gap,
+}: {
+  pick: PropPick;
+  model: SceneModel;
+  files: Record<string, GLTF>;
+  gap: number;
+}) {
   const object = useMemo(() => {
     if (model.kind === "parts") return PartShapes.build(model.parts);
     if (model.kind === "file") {
@@ -204,7 +225,7 @@ function Prop3D({ pick, model, files }: { pick: PropPick; model: SceneModel; fil
     return null;
   }, [model, files]);
   if (!object) return null;
-  const [x, z] = StageSpots.spot(pick.spot);
+  const [x, z] = StageSpots.spot(pick.spot, gap);
   object.position.set(x, 0, z);
   object.rotation.y = x === 0 ? 0 : -Math.sign(x) * 0.35;
   return <primitive object={object} />;
@@ -214,16 +235,18 @@ export function Props3D({
   props,
   models,
   files,
+  gap,
 }: {
   props: readonly PropPick[];
   models: Record<string, SceneModel>;
   files: Record<string, GLTF>;
+  gap: number;
 }) {
   return (
     <>
       {props.map((pick, i) => {
         const model = models[pick.kind];
-        return model ? <Prop3D key={`${pick.kind}-${i}`} pick={pick} model={model} files={files} /> : null;
+        return model ? <Prop3D key={`${pick.kind}-${i}`} pick={pick} model={model} files={files} gap={gap} /> : null;
       })}
     </>
   );

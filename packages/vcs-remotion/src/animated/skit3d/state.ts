@@ -1,8 +1,19 @@
-import { type CastMember3D, type Move, OFF, type Place, type Skit3DLine, type Skit3DSet, type Spot } from "./spec.ts";
+import {
+  type Action,
+  type CastMember3D,
+  HELD,
+  type Move,
+  OFF,
+  type Place,
+  type Rest,
+  type Skit3DLine,
+  type Skit3DSet,
+  type Spot,
+} from "./spec.ts";
 
 export interface Member3DState {
   place: Move;
-  sits: boolean;
+  rest: Rest;
 }
 
 export type Stage3DState = Record<string, Member3DState>;
@@ -19,13 +30,13 @@ export class StageSpots {
     far_right: 2,
   };
   static readonly SPOTS: Record<Spot, [number, number]> = {
-    back_left: [-3.4, -2.6],
-    back_center: [0, -2.9],
-    back_right: [3.4, -2.6],
-    side_left: [-5, -1],
-    side_right: [5, -1],
-    front_left: [-4.2, 1.6],
-    front_right: [4.2, 1.6],
+    back_left: [-1.5, -2.4],
+    back_center: [0, -2.6],
+    back_right: [1.5, -2.4],
+    side_left: [-2.4, -0.8],
+    side_right: [2.4, -0.8],
+    front_left: [-1.8, 1],
+    front_right: [1.8, 1],
   };
 
   static x(place: Place, gap: number): number {
@@ -36,15 +47,16 @@ export class StageSpots {
     return from + (Math.sign(StageSpots.PLACES[home]) || -1) * StageSpots.ENTRY;
   }
 
-  static spot(spot: Spot): [number, number] {
-    return StageSpots.SPOTS[spot];
+  static spot(spot: Spot, gap: number): [number, number] {
+    const [across, depth] = StageSpots.SPOTS[spot];
+    return [across * gap, depth];
   }
 }
 
 export class Stage3DMemory {
   static start(set: Skit3DSet): Stage3DState {
     return Object.fromEntries(
-      set.cast.map((member) => [member.id, { place: member.enters ? OFF : member.place, sits: false }]),
+      set.cast.map((member) => [member.id, { place: member.enters ? OFF : member.place, rest: "idle" }]),
     );
   }
 
@@ -61,10 +73,19 @@ export class Stage3DMemory {
       const act = Stage3DMemory.act(line, member.id);
       const entering = now.place === OFF && Stage3DMemory.joins(line, member, act?.move);
       const place = act?.move ?? (entering ? member.place : now.place);
-      const sits = act?.move ? false : act?.act === "sit" ? true : act?.act ? false : now.sits;
-      next[member.id] = { place, sits };
+      next[member.id] = { place, rest: Stage3DMemory.rest(now.rest, act?.act, act?.move) };
     }
     return next;
+  }
+
+  static rest(now: Rest, act: Action | undefined, move: Move | undefined): Rest {
+    if (move) return "idle";
+    if (!act) return now;
+    return Stage3DMemory.held(act) ? act : "idle";
+  }
+
+  static held(act: string): act is (typeof HELD)[number] {
+    return (HELD as readonly string[]).includes(act);
   }
 
   static act(line: Skit3DLine, id: string) {
