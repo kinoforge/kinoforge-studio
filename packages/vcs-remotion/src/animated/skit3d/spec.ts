@@ -70,6 +70,7 @@ export const ACTION_CLIPS: Record<(typeof ACTIONS)[number], readonly string[]> =
   pick_up: ["pick-up", "pickup", "pick_up", "grab", "interact"],
 };
 export const WALK_CLIPS = ["walk", "walking"] as const;
+export const BUILT_IN = { actions: ["idle", "talk"], faces: ["neutral"] } as const;
 export const FACE_MORPHS: Record<(typeof FACES)[number], readonly string[]> = {
   neutral: [],
   happy: ["happy", "smile", "joy"],

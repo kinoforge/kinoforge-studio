@@ -6,6 +6,7 @@ import { SKIT3D_COMPOSITION_ID } from "./composition.tsx";
 import {
   ACTIONS,
   ACTION_CLIPS,
+  BUILT_IN,
   FACES,
   FACE_MORPHS,
   GROUNDS,
@@ -53,6 +54,7 @@ export class Skit3DKit {
       furniture: {},
       colors: BOARD_COLOR_KEYS,
       clips: { ...ACTION_CLIPS, walk: WALK_CLIPS },
+      built_in: BUILT_IN,
       morphs: { faces: FACE_MORPHS, mouth: MOUTH_MORPHS },
       set: { schema: set, format: Signature.of(set) },
       direction: { schema: direction, format: Signature.of(direction), changes: [] },

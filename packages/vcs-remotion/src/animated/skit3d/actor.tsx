@@ -35,7 +35,9 @@ export class ActorMotion {
   static readonly WALKING = Math.PI / 2;
   static readonly HEIGHT = 1.75;
   static readonly LOOPS: ReadonlySet<string> = new Set(["idle", "talk", "walk", "dance", "sit"]);
-  static readonly BOB = { nod: 0.07, tilt: 0.04, nodSpeed: 9, tiltSpeed: 4.3 };
+  static readonly SPEECH_RAMP = 0.35;
+  static readonly HEAD = { nod: 0.035, tilt: 0.025, nodSpeed: 3.4, tiltSpeed: 1.7 };
+  static readonly BODY = { sway: 0.018, swaySpeed: 1.3 };
 
   static x(plan: ActorPlan, t: number): number {
     if (plan.walkEnd <= plan.walkStart) return plan.toX;
@@ -64,11 +66,17 @@ export class ActorMotion {
     return { now: spans[index], before: index > 0 ? spans[index - 1] : null };
   }
 
-  static talk(words: readonly CaptionWord[], t: number): number {
-    return Math.max(
-      0,
-      ...words.map((word) => Ease.clamp((t - word.start + 0.15) / 0.15) * Ease.clamp(1 - (t - word.end) / 0.25)),
-    );
+  static voiced(words: readonly CaptionWord[], t: number): number {
+    if (!words.length) return 0;
+    const first = words[0].start;
+    const last = words.reduce((end, word) => Math.max(end, word.end), first);
+    const ramp = ActorMotion.SPEECH_RAMP;
+    return Ease.clamp((t - first + ramp) / ramp) * Ease.clamp(1 - (t - last) / ramp);
+  }
+
+  static calm(now: ClipSpan, before: ClipSpan | null, blend: number): number {
+    if (now.loop) return before && !before.loop ? blend : 1;
+    return before?.loop ? 1 - blend : 0;
   }
 
   static mouth(words: readonly CaptionWord[], t: number): number {
@@ -84,6 +92,8 @@ interface Rig {
   actions: Map<string, THREE.AnimationAction>;
   morphs: THREE.Mesh[];
   head: THREE.Object3D | null;
+  body: THREE.Object3D | null;
+  rest: Map<THREE.Object3D, THREE.Quaternion>;
 }
 
 class RigBuilder {
@@ -102,13 +112,21 @@ class RigBuilder {
     }
     const morphs: THREE.Mesh[] = [];
     let head: THREE.Object3D | null = null;
+    let body: THREE.Object3D | null = null;
     root.traverse((node) => {
       const mesh = node as THREE.Mesh;
       if (mesh.isMesh && mesh.morphTargetDictionary) morphs.push(mesh);
-      if (!head && (node as THREE.Bone).isBone && /head/i.test(node.name)) head = node;
+      if (!(node as THREE.Bone).isBone) return;
+      if (!head && RigBuilder.HEAD.test(node.name)) head = node;
+      if (!body && RigBuilder.BODY.test(node.name)) body = node;
     });
-    return { holder, root, mixer, actions, morphs, head };
+    const rest = new Map<THREE.Object3D, THREE.Quaternion>();
+    for (const bone of [head, body]) if (bone) rest.set(bone, (bone as THREE.Object3D).quaternion.clone());
+    return { holder, root, mixer, actions, morphs, head, body, rest };
   }
+
+  static readonly HEAD = /head/i;
+  static readonly BODY = /chest|spine|torso/i;
 
   static tint(root: THREE.Object3D, name: string, colour: string): void {
     root.traverse((node) => {
@@ -152,13 +170,16 @@ export function Actor3D({
   };
   drive(now, blend);
   if (before && blend < 1) drive(before, 1 - blend);
+  for (const [bone, pose] of rig.rest) bone.quaternion.copy(pose);
   rig.mixer.update(0);
 
-  const talking = plan.speaking ? ActorMotion.talk(words, t) : 0;
-  const hasTalk = now.name === model.clips.talk;
-  if (rig.head && talking > 0 && !hasTalk) {
-    rig.head.rotation.x += Math.sin(t * ActorMotion.BOB.nodSpeed) * ActorMotion.BOB.nod * talking;
-    rig.head.rotation.z += Math.sin(t * ActorMotion.BOB.tiltSpeed) * ActorMotion.BOB.tilt * talking;
+  const ownTalk = !!model.clips.talk && now.name === model.clips.talk;
+  const talking = plan.speaking && !ownTalk ? ActorMotion.voiced(words, t) * ActorMotion.calm(now, before, blend) : 0;
+  if (talking > 0) {
+    const { HEAD, BODY } = ActorMotion;
+    rig.head?.rotateX(Math.sin(t * HEAD.nodSpeed) * HEAD.nod * talking);
+    rig.head?.rotateZ(Math.sin(t * HEAD.tiltSpeed) * HEAD.tilt * talking);
+    rig.body?.rotateY(Math.sin(t * BODY.swaySpeed) * BODY.sway * talking);
   }
   const faceMorph = plan.face ? model.faces?.[plan.face] : undefined;
   const faceLevel = plan.face ? Ease.out(t, 0.25, plan.faceAt) : 0;

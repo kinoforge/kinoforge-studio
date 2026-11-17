@@ -9,7 +9,7 @@ import { Ease } from "../shared/ease.ts";
 import { FitText } from "../shared/fit-text.ts";
 import { BOARD_FONT, type BoardColors, type BoardTheme, BoardThemes, PAINTS } from "../shared/theme.ts";
 import { Actor3D, ActorMotion, type ActorPlan, ActorPlanner } from "./actor.tsx";
-import { type CameraPlace, ShotPlanner } from "./camera.ts";
+import { type CameraPlace, type Cover, ShotPlanner } from "./camera.ts";
 import { useModelFiles } from "./models.ts";
 import {
   type CastMember3D,
@@ -147,13 +147,46 @@ class StagePlans {
   }
 }
 
+export class BubbleLayout {
+  static readonly NAME = 0.042;
+  static readonly NAME_PAD = 0.2;
+  static readonly NAME_GAP = 0.3;
+  static readonly EDGE = 0.05;
+  static readonly WIDTH = 0.84;
+  static readonly BOX = 0.15;
+  static readonly LEAST_FONT = 0.028;
+  static readonly MOST_FONT = 0.045;
+  static readonly LINES = 3;
+  static readonly CAPTIONS = 0.22;
+
+  static frame(width: number, height: number): number {
+    return Math.min(width, height);
+  }
+
+  static name(width: number, height: number): number {
+    return Math.round(BubbleLayout.frame(width, height) * BubbleLayout.NAME);
+  }
+
+  static cover(width: number, height: number, reserve: CaptionReserve): Cover {
+    if (reserve === "top") return { top: BubbleLayout.CAPTIONS, bottom: 0 };
+    if (reserve === "bottom") return { top: 0, bottom: BubbleLayout.CAPTIONS };
+    const frame = BubbleLayout.frame(width, height);
+    const name = BubbleLayout.name(width, height);
+    const used =
+      frame * BubbleLayout.EDGE + name * (1 + 2 * BubbleLayout.NAME_PAD + BubbleLayout.NAME_GAP) + height * BubbleLayout.BOX;
+    return { top: 0, bottom: used / height };
+  }
+}
+
 class Framing {
   static of(props: Skit3DProps, plans: readonly ActorPlan[], t: number): CameraPlace {
     const shown = plans.filter((plan) => plan.shown && plan.stays);
     const speaker = shown.find((plan) => plan.member.id === props.line.speaker) ?? shown[0];
     const tall = (plan: ActorPlan) => ActorMotion.HEIGHT * CastScale.of(plan.member);
+    const aspect = props.width / props.height;
+    const cover = BubbleLayout.cover(props.width, props.height, props.reserve ?? "none");
     if (!speaker) {
-      return ShotPlanner.place("wide", [{ x: 0, tall: ActorMotion.HEIGHT }], 0, props.width / props.height, props.reserve ?? "none", 0);
+      return ShotPlanner.place("wide", [{ x: 0, tall: ActorMotion.HEIGHT }], 0, aspect, cover, 0);
     }
     const partner = StagePlans.partner(new Map(shown.map((plan) => [plan.member.id, plan])), props.line, speaker.member.id);
     const walking = plans.some((plan) => plan.walkEnd > plan.walkStart);
@@ -171,8 +204,8 @@ class Framing {
       shot,
       subjects.map((plan) => ({ x: plan.toX, tall: tall(plan) })),
       side,
-      props.width / props.height,
-      props.reserve ?? "none",
+      aspect,
+      cover,
       Ease.clamp(t / Math.max(props.seconds, 0.1)),
     );
   }
@@ -205,10 +238,10 @@ function LineBubble({
   reserve: CaptionReserve;
 }) {
   if (!member) return null;
-  const frame = Math.min(width, height);
+  const frame = BubbleLayout.frame(width, height);
   const colour = PAINTS[member.colour];
   const pop = Ease.pop(t, 0.3);
-  const name = Math.round(frame * 0.042);
+  const name = BubbleLayout.name(width, height);
   const chip = (
     <div
       style={{
@@ -218,7 +251,8 @@ function LineBubble({
         fontFamily: BOARD_FONT,
         fontWeight: 800,
         fontSize: name,
-        padding: `${name * 0.2}px ${name * 0.55}px`,
+        lineHeight: 1,
+        padding: `${name * BubbleLayout.NAME_PAD}px ${name * 0.55}px`,
         borderRadius: name * 0.5,
         transform: `scale(${pop})`,
         transformOrigin: "left center",
@@ -232,24 +266,29 @@ function LineBubble({
       <AbsoluteFill
         style={{
           justifyContent: reserve === "bottom" ? "flex-start" : "flex-end",
-          padding: frame * 0.05,
+          padding: frame * BubbleLayout.EDGE,
         }}
       >
         <div>{chip}</div>
       </AbsoluteFill>
     );
   }
-  const box = { w: width * 0.84, h: height * 0.2 };
-  const font = Math.max(frame * 0.03, FitText.size(text, box, frame * 0.055, 3));
+  const box = { w: width * BubbleLayout.WIDTH, h: height * BubbleLayout.BOX };
+  const font = Math.max(
+    frame * BubbleLayout.LEAST_FONT,
+    FitText.size(text, box, frame * BubbleLayout.MOST_FONT, BubbleLayout.LINES),
+  );
   const tokens = text.split(/\s+/).filter(Boolean);
   const said = words.filter((word) => word.start <= t).length;
   return (
-    <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: frame * 0.05 }}>
+    <AbsoluteFill
+      style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: frame * BubbleLayout.EDGE }}
+    >
       <div style={{ width: box.w, transform: `translateY(${(1 - pop) * frame * 0.03}px)`, opacity: pop }}>
         {chip}
         <div
           style={{
-            marginTop: name * 0.3,
+            marginTop: name * BubbleLayout.NAME_GAP,
             background: "rgba(255,253,248,0.96)",
             borderRadius: font * 0.6,
             borderLeft: `${Math.max(4, font * 0.22)}px solid ${colour}`,
