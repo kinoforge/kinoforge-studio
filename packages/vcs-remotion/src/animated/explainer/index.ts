@@ -1,0 +1,62 @@
+export {
+  DEFAULT_EXPLAINER_PROPS,
+  EXPLAINER_COMPOSITION_ID,
+  ExplainerScene,
+  type ExplainerProps,
+  explainerCalcMeta,
+} from "./composition.tsx";
+export { CodeLayout, CodeScene } from "./code/scene.ts";
+export { CODE_LANGS, type CodeFile, type CodeLang, codeFileSchema } from "./code/spec.ts";
+export { CodeMemory, CodeScript, LineMatch } from "./code/state.ts";
+export { Syntax, TOKEN_KINDS, type Token, type TokenKind } from "./code/syntax.ts";
+export { DiagramLayout } from "./diagram/layout.ts";
+export { DiagramScene } from "./diagram/scene.ts";
+export { MARK_COLORS, MARK_TONES, type MarkTone, type StageNode } from "./diagram/spec.ts";
+export { DiagramMemory, DiagramScript } from "./diagram/state.ts";
+export { GreatCircle, MapViews, Projection, World } from "./map/geo.ts";
+export { MapScene } from "./map/scene.ts";
+export { MAP_REGIONS, ROUTE_MODES, type MapRegion, type StagePlace } from "./map/spec.ts";
+export { MapMemory, MapScript } from "./map/state.ts";
+export { CAR_SIZE, RoadMap, RoadPath } from "./road/geometry.ts";
+export { RoadScene } from "./road/scene.ts";
+export {
+  ROAD_ARMS,
+  ROAD_CARS,
+  ROAD_LANES,
+  ROAD_LAYOUTS,
+  ROAD_LOOKS,
+  SIGN_KINDS,
+  TRAFFIC_SIDES,
+  type RoadArm,
+  type RoadCar,
+  type RoadLayout,
+  type SignKind,
+  type TrafficSide,
+} from "./road/spec.ts";
+export { CarPose, RoadMemory, RoadRules, RoadScript } from "./road/state.ts";
+export { BoardFit, type FitRequest, fitRequestSchema } from "./fit.tsx";
+export { ExplainerKit, KIT_ASSET_KINDS, type KitAsset, type KitAssetKind } from "./kit.ts";
+export { MASCOTS, MascotFigure, type MascotPose } from "./mascot.tsx";
+export {
+  type Beat,
+  type Board,
+  CAPTION_RESERVES,
+  type CaptionReserve,
+  MASCOT_HATS,
+  MASCOT_RIGS,
+  type Mascot,
+  type MascotHat,
+  type MascotRig,
+  MOODS,
+  type Mood,
+  PIECE_KINDS,
+  PIECE_LAYERS,
+  type Piece,
+  type PieceLayer,
+  type PieceType,
+  boardSchema,
+  boardThemeSchema,
+  mascotSchema,
+} from "./spec.ts";
+export { SURFACE_PARTS, type Stage, stageSchema } from "./stage.ts";
+export { BoardCues, BoardLayout, BoardStack, SurfaceSplit } from "./timeline.ts";

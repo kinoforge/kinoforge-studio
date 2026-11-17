@@ -170,18 +170,14 @@ app.get("/health", (_req: Request, res: Response) => {
   res.json({ ok: true, service: "vcs-editor-service" });
 });
 
-// The explainer kit a board writer works from: its JSON schema, catalog and named assets.
-const EXPLAINER_KIT = ExplainerKit.describe();
-app.get("/v1/kits/explainer", (_req: Request, res: Response) => {
-  res.json(EXPLAINER_KIT);
+const KITS = { explainer: ExplainerKit.describe(), skit: SkitKit.describe() };
+app.get("/v1/kits/animated/:mode", (req: Request, res: Response) => {
+  const kit = KITS[req.params.mode as keyof typeof KITS];
+  if (!kit) return res.status(404).json({ ok: false, error: "no such kit" });
+  res.json(kit);
 });
 
-const SKIT_KIT = SkitKit.describe();
-app.get("/v1/kits/skit", (_req: Request, res: Response) => {
-  res.json(SKIT_KIT);
-});
-
-app.post("/v1/kits/explainer/fit", (req: Request, res: Response) => {
+app.post("/v1/kits/animated/explainer/fit", (req: Request, res: Response) => {
   const parsed = fitRequestSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ ok: false, error: parsed.error.message.slice(0, 500) });

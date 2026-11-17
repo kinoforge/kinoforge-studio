@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { CAPTIONED_COMPOSITION_ID } from "./captioned-composition.tsx";
 import { CLIP_COMPOSITION_ID } from "./clip-composition.tsx";
-import { EXPLAINER_COMPOSITION_ID } from "./explainer/composition.tsx";
-import { elementsSchema } from "./explainer/elements/spec.ts";
-import { shownStageSchema } from "./explainer/stage.ts";
+import { EXPLAINER_COMPOSITION_ID } from "./animated/explainer/composition.tsx";
+import { elementsSchema } from "./animated/shared/elements/spec.ts";
+import { shownStageSchema } from "./animated/explainer/stage.ts";
 import {
   CAPTION_RESERVES,
   boardColorsSchema,
@@ -11,9 +11,10 @@ import {
   boardSchema,
   boardThemeSchema,
   mascotSchema,
-} from "./explainer/spec.ts";
-import { SKIT_COMPOSITION_ID } from "./skit/composition.tsx";
-import { DRAWS, lineSchema, setSchema } from "./skit/spec.ts";
+} from "./animated/explainer/spec.ts";
+import { SKIT_COMPOSITION_ID } from "./animated/skit/composition.tsx";
+import { motionSchema } from "./animated/skit/motion.ts";
+import { DRAWS, lineSchema, setSchema } from "./animated/skit/spec.ts";
 import { CAPTION_POSITIONS, STORY_COMPOSITION_ID } from "./story-composition.tsx";
 
 const caption = z.object({ start: z.number(), end: z.number(), text: z.string() });
@@ -108,6 +109,7 @@ const skitInput = z.object({
   line: lineSchema,
   text: z.string().max(600),
   words: z.array(captionWord),
+  motion: motionSchema,
   history: z.array(z.object({ line: lineSchema, text: z.string().max(600) })).optional(),
   theme: boardThemeSchema.optional(),
   colors: boardColorsSchema.nullable().optional(),

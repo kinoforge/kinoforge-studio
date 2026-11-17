@@ -16,13 +16,13 @@ import {
   EXPLAINER_COMPOSITION_ID,
   ExplainerScene,
   explainerCalcMeta,
-} from "./explainer/composition.tsx";
+} from "./animated/explainer/composition.tsx";
 import {
   DEFAULT_SKIT_PROPS,
   SKIT_COMPOSITION_ID,
   SkitScene,
   skitCalcMeta,
-} from "./skit/composition.tsx";
+} from "./animated/skit/composition.tsx";
 import {
   DEFAULT_STORY_PROPS,
   STORY_COMPOSITION_ID,

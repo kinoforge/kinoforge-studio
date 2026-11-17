@@ -1,5 +1,5 @@
 import type { CaptionWord } from "./captions.ts";
-import { GlyphWidths } from "./explainer/metrics.ts";
+import { GlyphWidths } from "./animated/shared/metrics.ts";
 
 /** Story caption layout shared by every renderer (the Remotion composition and the ffmpeg
  *  lane's ASS subtitles), so line breaks, size and safe margins match across both. */

@@ -13,13 +13,13 @@ headless render, so what you preview is what you render.
   `durationInFrames`). The fast ffmpeg render lane reuses it so its output matches the
   composition.
 - **Captions.** `CaptionTrack.activeAt` picks the caption on screen at a time.
-- **Explainer.** `ExplainerScene` draws one scene as a board: cards, charts, a terminal, a
+- **Animated: explainer.** `ExplainerScene` draws one scene as a board: cards, charts, a terminal, a
   stamp, icons and a talking SVG mascot, appearing on the narration's words and laid out on
   their own (a board never sets a position). The board is data checked by `boardSchema`.
-  `ExplainerKit.describe()` turns `src/explainer` into what a writer model and a picker need:
-  the JSON schema, a catalog of the pieces with examples, and the named assets (themes,
-  mascots, hats, icons). The catalog comes in parts (the board's cards, each surface, the icon
-  list), so a writer reads only the surfaces and icons its video's stage names. Icons live in
+  `ExplainerKit.describe()` turns `src/animated/explainer` into the data a writer model and a
+  picker need: the JSON schema, each piece's field format and example, the surfaces, the icon
+  list and the named assets (themes, mascots, hats, icons). The kit holds no writing rules:
+  the caller keeps those in its own prompts and fills them with this data. Icons live in
   `icons/` in groups (general, science, engineering): Lucide's, plus the few it lacks drawn on
   its grid in `drawn.ts`. Add a piece in `spec.ts` and its view in `pieces/`. Diagram pieces
   (`show`, `flow`, `broadcast`, `mark`, `hide`, in `diagram/`) draw nodes and arrows that are
@@ -37,6 +37,15 @@ headless render, so what you preview is what you render.
   public domain, in `map/world.ts`): pins on the stage's `places`, routes with a plane, ship or
   car, and countries filled by ISO code. Chart and screen cards: `line`, `pie`, `numberline`,
   `chat`, `browser`.
+- **Animated: skit.** `SkitScene` (`src/animated/skit`) plays one line of a dialogue with drawn
+  stick people on a flat set: the set (`setSchema`: backdrop, cast, props, a running card) and
+  one line's direction (`lineSchema`: poses, faces, reactions, moves, card changes, a drawn
+  board beside or full frame). A scene gets the lines before it (`history`), so places, poses
+  and the card carry on. `motion` (`motionSchema`) sets how much a talking figure sways and
+  gestures, how fast, how long a pose change takes and whether a speaker with no directed pose
+  stays at rest. `SkitKit.describe()` gives the schemas, word lists, generated formats, the
+  furniture each backdrop already draws and the motion bounds. `src/animated/shared` holds
+  what both modes use: themes, fields, glyph metrics, easing, text fitting, elements, icons.
 - **Edit document.** `EditDocs.parse(compositionId, inputProps)`, the one zod-validated contract
   the editor produces and the renderer consumes.
 
