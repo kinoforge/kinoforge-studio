@@ -93,6 +93,7 @@ const explainerInput = z.object({
   reserve: z.enum(CAPTION_RESERVES).optional(),
   stage: shownStageSchema.nullable().optional(),
   history: z.array(boardSchema).optional(),
+  next: boardSchema.nullable().optional(),
   language: z
     .string()
     .regex(/^[a-z]{2}$/)

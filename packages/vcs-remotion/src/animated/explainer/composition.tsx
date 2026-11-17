@@ -2,6 +2,10 @@ import { useMemo } from "react";
 import { AbsoluteFill, type CalculateMetadataFunction, useCurrentFrame } from "remotion";
 import type { CaptionWord } from "../../captions.ts";
 import { CodeScene } from "./code/scene.ts";
+import { CodeMemory } from "./code/state.ts";
+import { DiagramMemory } from "./diagram/state.ts";
+import { MapMemory } from "./map/state.ts";
+import { RoadRules } from "./road/state.ts";
 import { CodeView } from "./code/view.tsx";
 import { DiagramScene } from "./diagram/scene.ts";
 import { DiagramView } from "./diagram/view.tsx";
@@ -44,6 +48,7 @@ export type ExplainerProps = {
    *  they left them. */
   stage?: Stage | null;
   history?: Board[];
+  next?: Board | null;
   /** The narration's language (ISO 639-1), for how numbers are written. */
   language?: string;
   elements?: BoardElements;
@@ -210,16 +215,25 @@ function Card({
   );
 }
 
-/** How far the board has left: after the last word, in the scene's closing moment, everything on
- *  it drifts up and fades so the next scene's first card rises into a clear board. */
 class SceneExit {
   static readonly SECONDS = 0.45;
   static readonly RISE = 0.035;
+  static readonly SURFACES: readonly ((board: Board) => boolean)[] = [
+    (board) => DiagramMemory.isDiagram(board),
+    (board) => CodeMemory.isCode(board),
+    (board) => RoadRules.isRoad(board),
+    (board) => MapMemory.isMap(board),
+  ];
 
   static of(t: number, seconds: number, words: readonly CaptionWord[]): number {
     const spoken = words.reduce((end, word) => Math.max(end, word.end), 0);
     const from = Math.max(spoken, seconds - SceneExit.SECONDS);
     return seconds - from > 0 ? Ease.inOut(t - from, seconds - from) : 0;
+  }
+
+  static keeps(board: Board, next: Board | null): boolean {
+    if (!next) return false;
+    return SceneExit.SURFACES.some((on) => on(board) && on(next));
   }
 }
 
@@ -312,6 +326,7 @@ function BoardScene({
   reserve = "bottom",
   stage,
   history = [],
+  next = null,
   t,
 }: ExplainerProps & { t: number }) {
   const palette = BoardThemes.of(theme, colors);
@@ -371,6 +386,7 @@ function BoardScene({
       ? StampBadge.size(stampPiece.text, Math.min(width, height), stampAnchor.w)
       : 0;
   const leave = SceneExit.of(t, seconds, words);
+  const surfaceLeave = SceneExit.keeps(board, next) ? 0 : leave;
 
   return (
     <AbsoluteFill
@@ -379,8 +395,8 @@ function BoardScene({
       <Backdrop palette={palette} width={width} />
       <AbsoluteFill
         style={{
-          opacity: 1 - leave,
-          transform: `translateY(${-leave * height * SceneExit.RISE}px)`,
+          opacity: 1 - surfaceLeave,
+          transform: `translateY(${-surfaceLeave * height * SceneExit.RISE}px)`,
         }}
       >
         {diagram ? (
@@ -399,6 +415,13 @@ function BoardScene({
         {code ? <CodeView plan={code} t={t} palette={palette} /> : null}
         {road ? <RoadView plan={road} t={t} palette={palette} /> : null}
         {map ? <MapLayer plan={map} t={t} palette={palette} /> : null}
+      </AbsoluteFill>
+      <AbsoluteFill
+        style={{
+          opacity: 1 - leave,
+          transform: `translateY(${-leave * height * SceneExit.RISE}px)`,
+        }}
+      >
         {ids.map((id) => {
           const place = cardBox(id);
           return (

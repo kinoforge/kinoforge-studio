@@ -4,7 +4,7 @@ import { BOARD_MONO, type BoardPalette } from "../../shared/theme.ts";
 import { type Box } from "../timeline.ts";
 import { FitText } from "../../shared/fit-text.ts";
 import { LabelPlaces, type LabelSpot } from "./labels.ts";
-import type { Point } from "./layout.ts";
+import { DiagramInk, type Point } from "./layout.ts";
 import { DiagramRoutes, Route } from "./route.ts";
 import { MARK_COLORS, type StageNode } from "./spec.ts";
 import type { DiagramScript, Ring, Span } from "./state.ts";
@@ -78,16 +78,17 @@ function DiagramNode({
   const row = icon != null && box.w >= box.h * NodeRow.WIDE;
   const glyph = box.h * (row ? NodeRow.ICON : 0.34);
   const textW = row ? box.w - glyph - box.h * (NodeRow.INSET * 2 + NodeRow.GAP) : box.w * 0.88;
+  const big = row || icon == null;
   const label = FitText.size(
     look.label,
-    { w: textW, h: box.h * (row ? (detail ? 0.5 : 0.76) : detail ? 0.3 : 0.42) },
-    Math.round(box.h * (row ? 0.26 : 0.18)),
+    { w: textW, h: box.h * (big ? (detail ? 0.5 : 0.76) : detail ? 0.3 : 0.42) },
+    Math.round(box.h * (big ? 0.26 : 0.18)),
     2,
   );
   const small = FitText.size(
     detail ?? "",
-    { w: textW, h: box.h * (row ? 0.22 : 0.16) },
-    Math.round(box.h * (row ? 0.14 : 0.1)),
+    { w: textW, h: box.h * (big ? 0.22 : 0.16) },
+    Math.round(box.h * (big ? 0.14 : 0.1)),
     1,
     "mono",
   );
@@ -319,9 +320,8 @@ export function DiagramView({
     const span = script.nodes.get(id);
     placed.set(id, span?.enter == null ? Glide.box(from?.get(id), target, t) : target);
   }
-  const unit = Math.min(...[...placed.values()].map((box) => box.h), 400);
-  const stroke = Math.max(2.5, unit * 0.028);
-  const gap = stroke * 2;
+  const stroke = DiagramInk.stroke(Math.min(...[...placed.values()].map((box) => box.h)));
+  const gap = stroke * DiagramInk.GAP;
   const shows = (id: string) => {
     const span = script.nodes.get(id);
     return !!span && (span.enter == null || t >= span.enter);
@@ -370,8 +370,8 @@ export function DiagramView({
     ];
   });
 
-  const tagSize = stroke * 6;
-  const tagPad: [number, number] = [stroke, stroke * 2.5];
+  const tagSize = stroke * DiagramInk.TAG;
+  const tagPad: [number, number] = [stroke * DiagramInk.PAD[0], stroke * DiagramInk.PAD[1]];
   const tagBox = (text: string, size: number, pad: [number, number], mono = false) => ({
     w: FitText.width(text, size, mono ? "mono" : "sans") + pad[1] * 2,
     h: size * FitText.LEADING + pad[0] * 2,
