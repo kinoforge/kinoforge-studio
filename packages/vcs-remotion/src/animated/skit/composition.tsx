@@ -311,6 +311,33 @@ interface Span {
   width: number;
 }
 
+class CastSpacing {
+  static readonly GAP = Rig.UPPER + Rig.FORE + Rig.HEAD;
+  static readonly PASSES = 4;
+
+  static spread(placed: Placed[], unit: number, room: { left: number; right: number }) {
+    const shown = placed
+      .filter((entry) => entry.shown && entry.x >= room.left && entry.x <= room.right)
+      .sort((a, b) => a.x - b.x);
+    if (shown.length < 2) return;
+    const gap = CastSpacing.GAP * unit;
+    const edge = gap / 2;
+    for (let pass = 0; pass < CastSpacing.PASSES; pass++) {
+      for (let i = 1; i < shown.length; i++) {
+        const short = gap - (shown[i].x - shown[i - 1].x);
+        if (short > 0) {
+          shown[i - 1].x -= short / 2;
+          shown[i].x += short / 2;
+        }
+      }
+      const low = room.left + edge - shown[0].x;
+      const high = shown[shown.length - 1].x - (room.right - edge);
+      const shift = low > 0 ? low : high > 0 ? -high : 0;
+      if (shift) for (const entry of shown) entry.x += shift;
+    }
+  }
+}
+
 class CastMotion {
   static offX(member: CastMember, span: Span): number {
     return SkitPlaces.share(member.place) > 0.5 ? span.width * 1.2 : -span.width * 0.2;
@@ -485,6 +512,7 @@ function SetLayer({
         : null;
     })
     .filter((entry): entry is Placed => entry !== null);
+  CastSpacing.spread(placed, u, view.room);
   const headOf = (entry: Placed) => {
     const [hx, hy] = Rig.head(entry.frame.pose, entry.frame.sit);
     return { x: entry.x + hx * u * Math.sign(entry.dir), y: view.floor + hy * u };
