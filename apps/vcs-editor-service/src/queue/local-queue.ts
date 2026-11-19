@@ -5,6 +5,7 @@ import {
   type Flow,
   type FlowRun,
   type Handlers,
+  type Later,
   type Outcome,
   type RenderQueue,
 } from "./queue.ts";
@@ -34,6 +35,7 @@ export class LocalQueue implements RenderQueue {
   private readonly limits = new Map<string, Limiter>();
   private readonly active = new Set<string>();
   private readonly busy = new Set<string>();
+  private readonly waiting = new Map<string, WorkDir>();
 
   constructor(private readonly handlers: Handlers) {}
 
@@ -64,6 +66,23 @@ export class LocalQueue implements RenderQueue {
     return { done, cancel: async () => abort.abort(new Error("cancelled")) };
   }
 
+  async later(work: WorkDir, flow: Flow, { key, delayMs }: Later): Promise<void> {
+    const pending = this.waiting.get(key);
+    if (pending) {
+      pending.write("spec.json", work.spec());
+      work.remove();
+      return;
+    }
+    this.waiting.set(key, work);
+    this.active.add(work.id);
+    setTimeout(() => {
+      this.waiting.delete(key);
+      void this.submit(work, flow)
+        .then((run) => run.done)
+        .catch((e) => console.error(`${key} failed:`, e));
+    }, delayMs).unref();
+  }
+
   private async chore(kind: ChoreKind, chores: Chores, signal: AbortSignal): Promise<void> {
     if (this.busy.has(kind) || signal.aborted) return;
     this.busy.add(kind);
@@ -76,18 +95,30 @@ export class LocalQueue implements RenderQueue {
     }
   }
 
-  private async run(work: WorkDir, flow: Flow, signal: AbortSignal): Promise<Outcome> {
-    let error: string | undefined;
-    try {
-      for (const kind of flow.steps.filter((k) => k !== "finish")) {
+  private async run(work: WorkDir, flow: Flow, outer: AbortSignal): Promise<Outcome> {
+    const stop = new AbortController();
+    const signal = AbortSignal.any([outer, stop.signal]);
+    const runs = new Map<string, Promise<unknown>>();
+    let first: unknown;
+    for (const step of flow.steps.filter((s) => s.kind !== "finish")) {
+      const before = step.after.map((name) => runs.get(name)).filter((p) => p !== undefined);
+      const run = Promise.all(before).then(() => {
         signal.throwIfAborted();
-        await this.step(kind, () => this.handlers[kind]({ work, signal }));
-      }
-    } catch (e) {
-      error = Failure.text(e);
+        return this.step(step.kind, () => this.handlers[step.kind]({ work, signal, part: step.part }));
+      });
+      runs.set(
+        step.name,
+        run.catch((e) => {
+          first ??= e;
+          stop.abort(e);
+          throw e;
+        }),
+      );
     }
+    await Promise.allSettled(runs.values());
+    const error = first === undefined ? undefined : Failure.text(first);
     try {
-      return (await this.step("finish", () => this.handlers.finish({ work, signal, error }))) as Outcome;
+      return (await this.step("finish", () => this.handlers.finish({ work, signal: outer, error }))) as Outcome;
     } catch (e) {
       console.error("render finish failed:", e);
       return { ok: false, error: error ?? Failure.text(e) };

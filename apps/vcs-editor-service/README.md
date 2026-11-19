@@ -65,8 +65,12 @@ absolute URL), renders, and either writes to `OUTPUT_DIR` or PUTs the result to 
 | POST | `/v1/kits/animated/explainer/fit` | checks drawn boards for text that does not fit |
 | POST | `/v1/render` | generic command: `{compositionId, inputProps}` in, mp4 out (bad shape is a 400) |
 | POST | `/caption` | burn a caption track onto an already cut clip |
-| POST | `/render-story` | assemble scene images or clips with voiceover, captions, and music into one mp4; with `callbackUrl` it answers 202 and posts `{ok, file}` or `{ok:false, error}` there when done |
-| POST | `/prewarm-story` | render a story's finished scenes into the scene cache ahead of its assembly |
+| POST | `/render-story` | assemble scene images or clips with voiceover, captions, and music into one mp4; a scene with `render: {compositionId, inputProps}` has its clip drawn first |
+| POST | `/prewarm-story` | render a story's finished scenes into the scene cache ahead of its assembly, once a burst of calls for the same `pid` goes quiet for `PREWARM_DELAY_SECONDS` (60) |
+
+Every render route takes `out_dir` and `out` (else it writes `renders/<id>.mp4`) or an
+`uploadUrl` to PUT the file to. With a `callbackUrl` it answers 202 and posts `{ok, file}` or
+`{ok:false, error}` there when done; without one it answers when the render ends.
 | PUT | `/v1/source` | upload a local source file, get a `/media` URL back |
 | GET | `/media/*` | serve `OUTPUT_DIR` so the headless renderer reads frames off the volume |
 
@@ -119,9 +123,9 @@ Every render is a flow of steps, each on its own lane:
 |---|---|---|---|
 | `prepare` | `fetch` | 4 | downloads the render's inputs next to it; a story skips scenes already in the scene cache |
 | `story` | `story`, `prewarm` | 1 | ffmpeg story assembly; prewarm runs behind real renders |
-| `board`, `caption` | `board`, `caption` | 2 each, `CHROMIUM_SLOTS` together | Remotion renders |
+| `board`, `caption` | `board`, `caption` | 2 each, `CHROMIUM_SLOTS` together | Remotion renders; each drawn scene of a story is its own `board` step, the story waits for all of them and a scene already in the scene cache is not drawn again |
 | `deliver` | `upload` | 2 | PUTs the file to `uploadUrl`, or writes it under `OUTPUT_DIR` |
-| `notify` | `finish` | 4 | posts the outcome to `callbackUrl` and removes the render's work folder |
+| `notify` | `finish`, `start` | 4 | `finish` posts the outcome to `callbackUrl` and removes the render's work folder; `start` queues a waiting prewarm once its burst is over |
 | `chores` | `sweep`, `doctor` | 1 | `sweep` removes work no render holds, stale temp files and trims caches; `doctor` repairs renders whose failure was not reported, trims caches when the disk runs low and logs a health line |
 
 A render's request stays in `OUTPUT_DIR/work/<id>`; only its id and a few labels travel with

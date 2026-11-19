@@ -6,6 +6,7 @@ import {
   type Flow,
   type FlowRun,
   type Handlers,
+  type Later,
   NoRoom,
   type Outcome,
   type RenderQueue,
@@ -22,6 +23,7 @@ export interface RunnelConfig {
 interface Payload {
   work: string;
   error?: string;
+  part?: number;
 }
 
 const BROKEN = new Set(["dead", "expired", "cancelled"]);
@@ -54,9 +56,11 @@ export class RunnelQueue implements RenderQueue {
     for (const lane of Lanes.ALL) {
       const worker = new Worker(this.client, { queues: [lane.queue], concurrency: lane.concurrency });
       for (const kind of lane.kinds) {
-        worker.handle(kind, (job, ctx) =>
-          chore(kind) ? chores[kind](ctx.signal) : this.handle(kind as FlowKind, job, ctx.signal),
-        );
+        worker.handle(kind, (job, ctx) => {
+          if (chore(kind)) return chores[kind](ctx.signal);
+          if (kind === "start") return this.begin(WorkDir.open((job.payload as Payload).work));
+          return this.handle(kind as FlowKind, job, ctx.signal);
+        });
       }
       this.running.push(worker.run(signal).catch((e) => console.error(`runnel worker ${lane.queue} stopped:`, e)));
     }
@@ -73,21 +77,53 @@ export class RunnelQueue implements RenderQueue {
   }
 
   async submit(work: WorkDir, flow: Flow): Promise<FlowRun> {
-    const steps: Record<string, FlowStep> = {};
-    flow.steps.forEach((kind, i) => {
-      steps[kind] = { job: this.job(kind, { work: work.id }, flow), after: i ? [flow.steps[i - 1]] : [] };
-    });
-    const made = await this.client.enqueueFlow(steps);
-    const ids = Object.fromEntries(Object.entries(made).map(([kind, r]) => [kind, r.id]));
-    work.write("ids.json", ids);
+    const ids = await this.enqueue(work, flow);
     const stop = new AbortController();
     return {
-      done: this.outcome(ids, flow.steps, stop.signal),
+      done: this.outcome(
+        ids,
+        flow.steps.map((s) => s.name),
+        stop.signal,
+      ),
       cancel: async () => {
         stop.abort();
         await Promise.all(Object.values(ids).map((id) => this.client.cancel(id).catch(() => undefined)));
       },
     };
+  }
+
+  async later(work: WorkDir, flow: Flow, { key, delayMs }: Later): Promise<void> {
+    work.write("flow.json", flow);
+    const made = await this.client.enqueue({
+      ...this.job("start", { work: work.id }, flow),
+      delayMs,
+      uniqueKey: key,
+      uniqueForMs: delayMs,
+    });
+    if (!made.duplicate) return;
+    const kept = (await this.find(made.id))?.payload as Payload | undefined;
+    if (kept?.work && kept.work !== work.id) {
+      const first = WorkDir.open(kept.work);
+      if (first.exists) first.write("spec.json", work.spec());
+    }
+    if (kept?.work !== work.id) work.remove();
+  }
+
+  private async begin(work: WorkDir): Promise<{ steps: number }> {
+    if (!work.has("ids.json")) await this.enqueue(work, work.read("flow.json") as Flow);
+    return { steps: Object.keys(work.read("ids.json") as object).length };
+  }
+
+  private async enqueue(work: WorkDir, flow: Flow): Promise<Record<string, string>> {
+    const steps: Record<string, FlowStep> = {};
+    for (const step of flow.steps) {
+      const payload = { work: work.id, ...(step.part !== undefined ? { part: step.part } : {}) };
+      steps[step.name] = { job: this.job(step.kind, payload, flow), after: step.after };
+    }
+    const made = await this.client.enqueueFlow(steps);
+    const ids = Object.fromEntries(Object.entries(made).map(([name, r]) => [name, r.id]));
+    work.write("ids.json", ids);
+    return ids;
   }
 
   async live(work: WorkDir): Promise<boolean> {
@@ -135,7 +171,7 @@ export class RunnelQueue implements RenderQueue {
 
   private async failed(work: string, error: string): Promise<void> {
     await this.client.enqueue({
-      ...this.job("finish", { work, error }, { steps: ["finish"], meta: { failed: "true" } }),
+      ...this.job("finish", { work, error }, { steps: [], meta: { failed: "true" } }),
       uniqueKey: `failed:${work}`,
       uniqueForMs: 86_400_000,
     });
@@ -144,22 +180,23 @@ export class RunnelQueue implements RenderQueue {
   private async handle(kind: FlowKind, job: Job, signal: AbortSignal): Promise<unknown> {
     const payload = job.payload as Payload;
     try {
-      return await this.handlers[kind]({ work: WorkDir.open(payload.work), signal, error: payload.error });
+      const work = WorkDir.open(payload.work);
+      return await this.handlers[kind]({ work, signal, error: payload.error, part: payload.part });
     } catch (e) {
       if (e instanceof NoRoom) throw busy(e.retryMs);
       throw e;
     }
   }
 
-  private async outcome(ids: Record<string, string>, order: FlowKind[], signal: AbortSignal): Promise<Outcome> {
+  private async outcome(ids: Record<string, string>, order: string[], signal: AbortSignal): Promise<Outcome> {
     try {
       const last = await this.client.wait(ids.finish, { signal });
       if (last.state === "completed") return last.result as Outcome;
-      for (const kind of order) {
-        const step = await this.client.get(ids[kind]);
+      for (const name of order) {
+        const step = await this.client.get(ids[name]);
         const error = step.errors.at(-1)?.error;
         if (step.state !== "completed" && step.state !== "cancelled") {
-          return { ok: false, error: error || `the ${kind} step ${step.state}` };
+          return { ok: false, error: error || `the ${name} step ${step.state}` };
         }
       }
       return { ok: false, error: "the render was cancelled" };

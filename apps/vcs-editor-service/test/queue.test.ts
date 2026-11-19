@@ -53,12 +53,42 @@ function handlers(over: Partial<Handlers> = {}): Handlers {
 after(() => fs.rmSync(output, { recursive: true, force: true }));
 
 describe("flows", () => {
+  const names = (spec: Parameters<RenderSpecs["flow"]>[0]) => specs.flow(spec).steps.map((s) => s.name);
+
   test("each route runs fetch, its render, upload and finish; prewarm skips upload", () => {
-    assert.deepEqual(specs.flow({ route: "story", body: story() }).steps, ["fetch", "story", "upload", "finish"]);
-    assert.deepEqual(specs.flow({ route: "caption", body: {} as never }).steps.at(1), "caption");
+    assert.deepEqual(names({ route: "story", body: story() }), ["fetch", "story", "upload", "finish"]);
+    assert.deepEqual(names({ route: "caption", body: {} as never }).at(1), "caption");
     const prewarm = specs.flow({ route: "prewarm", body: story() });
-    assert.deepEqual(prewarm.steps, ["fetch", "prewarm", "finish"]);
+    assert.deepEqual(prewarm.steps.map((s) => s.name), ["fetch", "prewarm", "finish"]);
     assert.ok((prewarm.priority ?? 0) < 0);
+  });
+
+  test("a story's drawn scenes render beside each other after fetch, and the story waits for all", () => {
+    const render = { compositionId: "ExplainerScene", inputProps: { seconds: 2 } };
+    const scenes = [
+      { image: "", seconds: 2, key: "a", render },
+      { image: "", seconds: 2, key: "b" },
+      { image: "", seconds: 2, key: "c", render },
+    ];
+    const steps = specs.flow({ route: "story", body: story({ scenes }) }).steps;
+    const by = Object.fromEntries(steps.map((s) => [s.name, s]));
+    assert.deepEqual(by["board-0"], { name: "board-0", kind: "board", after: ["fetch"], part: 0 });
+    assert.deepEqual(by["board-2"].after, ["fetch"]);
+    assert.deepEqual(by.story.after, ["board-0", "board-2"]);
+    assert.deepEqual(by.upload.after, ["story"]);
+  });
+
+  test("only a prewarm waits for its burst, keyed by its film", () => {
+    assert.equal(specs.later({ route: "story", body: story() }), undefined);
+    assert.equal(specs.later({ route: "prewarm", body: story() })?.key, "prewarm:p1");
+  });
+
+  test("a render without a place of its own lands under renders, named by its work", () => {
+    const work = WorkDir.create({ route: "board", body: {} });
+    assert.equal(specs.target({ route: "story", body: story() }, work).file, `renders/${work.id}.mp4`);
+    const named = { route: "caption" as const, body: { out: "captioned.mp4", out_dir: "videos/v/clips/c/variants" } };
+    assert.equal(specs.target(named, work).file, "videos/v/clips/c/variants/captioned.mp4");
+    work.remove();
   });
 
   test("a story's meta names the film, its scenes and length, and nothing signed", () => {
@@ -78,6 +108,7 @@ describe("flows", () => {
     await queue.submit(work, specs.flow(spec));
     const steps = sent[0] as Record<string, { job: { payload: unknown; queue: string }; after: string[] }>;
     for (const step of Object.values(steps)) assert.deepEqual(step.job.payload, { work: work.id });
+    assert.deepEqual(Object.keys(steps), ["fetch", "story", "upload", "finish"]);
     assert.deepEqual(steps.upload.after, ["story"]);
     assert.equal(steps.story.job.queue, "story");
     assert.ok(!JSON.stringify(steps).includes("secret"));
@@ -109,6 +140,50 @@ describe("local queue", () => {
     assert.equal(most, 1);
     assert.ok(outcomes.every((o) => o.ok && o.file === "videogen/p1/video.mp4"));
     assert.deepEqual(WorkDir.ids(), []);
+  });
+
+  test("a burst of prewarms renders once, with the last scenes sent", async () => {
+    const seen: number[] = [];
+    const queue = new LocalQueue(
+      handlers({
+        prewarm: async ({ work }: StepContext) => {
+          seen.push((work.spec().body as { scenes: unknown[] }).scenes.length);
+        },
+      }),
+    );
+    const later = { key: "prewarm:p1", delayMs: 20 };
+    for (const count of [1, 2, 3]) {
+      const scenes = Array.from({ length: count }, (_, i) => ({ image: "", seconds: 1, key: `k${i}` }));
+      const spec = { route: "prewarm" as const, body: story({ scenes }) };
+      await queue.later(WorkDir.create(spec), specs.flow(spec), later);
+    }
+    assert.equal(WorkDir.ids().length, 1);
+    await new Promise((r) => setTimeout(r, 80));
+    assert.deepEqual(seen, [3]);
+    assert.deepEqual(WorkDir.ids(), []);
+  });
+
+  test("a failed board stops its film: the story never runs and finish gets the scene's error", async () => {
+    const ran: string[] = [];
+    const queue = new LocalQueue(
+      handlers({
+        board: async ({ part }: StepContext) => {
+          if (part === 1) throw new Error("scene 2: chromium crashed");
+        },
+        story: async () => {
+          ran.push("story");
+        },
+      }),
+    );
+    const render = { compositionId: "ExplainerScene", inputProps: {} };
+    const scenes = [
+      { image: "", seconds: 1, key: "a", render },
+      { image: "", seconds: 1, key: "b", render },
+    ];
+    const spec = { route: "story" as const, body: story({ scenes }) };
+    const outcome = await (await queue.submit(WorkDir.create(spec), specs.flow(spec))).done;
+    assert.deepEqual(outcome, { ok: false, error: "scene 2: chromium crashed" });
+    assert.deepEqual(ran, []);
   });
 
   test("a failed step skips the rest, finish gets its error and the work dir goes", async () => {

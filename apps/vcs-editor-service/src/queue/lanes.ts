@@ -6,11 +6,12 @@ export type StepKind =
   | "caption"
   | "upload"
   | "finish"
+  | "start"
   | ChoreKind;
 
 export type ChoreKind = "sweep" | "doctor";
 
-export type FlowKind = Exclude<StepKind, ChoreKind>;
+export type FlowKind = Exclude<StepKind, ChoreKind | "start">;
 
 export interface Lane {
   queue: string;
@@ -57,7 +58,7 @@ export class Lanes {
     lane("board", ["board"], { concurrency: 2, attempts: 3, timeoutMs: 1_800_000, pool: Lanes.CHROMIUM }),
     lane("caption", ["caption"], { concurrency: 2, attempts: 3, timeoutMs: 1_800_000, pool: Lanes.CHROMIUM }),
     lane("deliver", ["upload"], { concurrency: 2, attempts: 5, timeoutMs: 1_800_000 }),
-    lane("notify", ["finish"], { concurrency: 4, attempts: 8, timeoutMs: 60_000 }),
+    lane("notify", ["finish", "start"], { concurrency: 4, attempts: 8, timeoutMs: 60_000 }),
     lane("chores", ["sweep", "doctor"], { concurrency: 1, attempts: 1, timeoutMs: 3_600_000 }),
   ];
 

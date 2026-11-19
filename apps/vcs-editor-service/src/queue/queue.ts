@@ -1,10 +1,22 @@
 import type { ChoreKind, FlowKind } from "./lanes.ts";
 import type { WorkDir } from "./work.ts";
 
+export interface FlowStep {
+  name: string;
+  kind: FlowKind;
+  after: string[];
+  part?: number;
+}
+
 export interface Flow {
-  steps: FlowKind[];
+  steps: FlowStep[];
   meta: Record<string, string>;
   priority?: number;
+}
+
+export interface Later {
+  key: string;
+  delayMs: number;
 }
 
 export interface Outcome {
@@ -17,6 +29,7 @@ export interface StepContext {
   work: WorkDir;
   signal: AbortSignal;
   error?: string;
+  part?: number;
 }
 
 export type StepHandler = (ctx: StepContext) => Promise<unknown>;
@@ -38,6 +51,18 @@ export interface RenderQueue {
   heal(work: WorkDir): Promise<void>;
   stats(): Promise<Record<string, unknown>>;
   submit(work: WorkDir, flow: Flow): Promise<FlowRun>;
+  later(work: WorkDir, flow: Flow, later: Later): Promise<void>;
+}
+
+export class FlowSteps {
+  static chain(kinds: FlowKind[], from: FlowStep[] = []): FlowStep[] {
+    const steps = [...from];
+    for (const kind of kinds) {
+      const ends = steps.filter((s) => !steps.some((o) => o.after.includes(s.name))).map((s) => s.name);
+      steps.push({ name: kind, kind, after: ends });
+    }
+    return steps;
+  }
 }
 
 export class NoRoom extends Error {

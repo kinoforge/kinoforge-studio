@@ -31,11 +31,15 @@ export class Inputs {
       wanted.set(name, value);
       return this.specs.media.url(this.specs.media.rel(path.join(work.inputs, name)));
     };
+    const ours = (hosts: Set<string>) => (v: unknown) =>
+      typeof v === "string" && Inputs.onHost(v, hosts) ? local(v) : v;
     if (spec.route === "story" || spec.route === "prewarm") {
       const b = spec.body as unknown as StoryBody;
       const props = this.specs.storyProps(b);
+      const hosts = Inputs.hosts(b.uploadUrl);
       b.scenes.forEach((s, i) => {
         if (this.ffmpeg.cached(props, props.scenes[i], i)) return;
+        if (s.render) s.render.inputProps = Inputs.walk(s.render.inputProps, ours(hosts)) as Record<string, unknown>;
         s.image = local(s.image) as string;
         if (s.images) s.images = s.images.map((x) => local(x) as string);
         if (s.video) s.video = local(s.video) as string;
@@ -48,9 +52,7 @@ export class Inputs {
       b.clipRel = local(b.clipRel) as string;
     } else {
       const b = spec.body as unknown as RenderBody;
-      const hosts = Inputs.hosts(b.uploadUrl);
-      const ours = (v: unknown) => (typeof v === "string" && Inputs.onHost(v, hosts) ? local(v) : v);
-      b.inputProps = Inputs.walk(b.inputProps, ours) as Record<string, unknown>;
+      b.inputProps = Inputs.walk(b.inputProps, ours(Inputs.hosts(b.uploadUrl))) as Record<string, unknown>;
     }
     const limiter = new Limiter(Inputs.PARALLEL);
     await Promise.all(

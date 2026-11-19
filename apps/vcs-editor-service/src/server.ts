@@ -134,23 +134,29 @@ const handlers: Handlers = {
 WorkDir.use(OUTPUT_DIR);
 const queue: RenderQueue = RunnelQueue.fromEnv(handlers) ?? new LocalQueue(handlers);
 
-async function submit(route: Route, body: Record<string, unknown>): Promise<FlowRun> {
+async function submit(route: Route, body: Record<string, unknown>): Promise<FlowRun | null> {
   const spec = { route, body };
   const work = WorkDir.create(spec);
   try {
-    return await queue.submit(work, specs.flow(spec));
+    const later = specs.later(spec);
+    if (!later) return await queue.submit(work, specs.flow(spec));
+    await queue.later(work, specs.flow(spec), later);
+    return null;
   } catch (e) {
     work.remove();
     throw e;
   }
 }
 
-function accept(route: Route, answer: (res: Response, run: FlowRun) => Promise<void>) {
+function accept(route: Route) {
   return async (req: Request, res: Response) => {
     const problem = specs.problem(route, req.body);
     if (problem) return res.status(400).json({ ok: false, error: problem });
     try {
-      await answer(res, await submit(route, req.body));
+      const run = await submit(route, req.body);
+      const callback = typeof req.body.callbackUrl === "string" && req.body.callbackUrl;
+      if (run && !callback) await settled(res, run);
+      else res.status(202).json({ ok: true, accepted: true });
     } catch (e) {
       console.error(`${route} render failed:`, e);
       if (!res.headersSent) res.status(500).json({ ok: false, error: Failure.text(e) });
@@ -170,17 +176,10 @@ async function settled(res: Response, run: FlowRun): Promise<void> {
   else res.status(500).json({ ok: false, error: outcome.error });
 }
 
-async function accepted(res: Response): Promise<void> {
-  res.status(202).json({ ok: true, accepted: true });
-}
-
-app.post("/caption", accept("caption", settled));
-app.post("/v1/render", accept("board", settled));
-app.post("/prewarm-story", accept("prewarm", accepted));
-app.post("/render-story", (req: Request, res: Response) => {
-  const later = typeof req.body?.callbackUrl === "string" && req.body.callbackUrl;
-  return accept("story", later ? accepted : settled)(req, res);
-});
+app.post("/caption", accept("caption"));
+app.post("/v1/render", accept("board"));
+app.post("/prewarm-story", accept("prewarm"));
+app.post("/render-story", accept("story"));
 
 const SOURCE_EXT = /^\.(mp4|mov|webm|mkv|m4v|jpg|jpeg|png|mp3|wav|m4a)$/;
 

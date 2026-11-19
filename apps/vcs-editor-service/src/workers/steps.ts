@@ -5,7 +5,7 @@ import path from "node:path";
 import type { StoryVideoProps } from "@vcs/remotion";
 import type { RenderDriver } from "../driver.ts";
 import type { FfmpegDriver } from "../ffmpeg-driver.ts";
-import type { Outcome, StepContext } from "../queue/queue.ts";
+import { Failure, type Outcome, type StepContext } from "../queue/queue.ts";
 import type { RenderSpecs, StoryBody } from "../render-specs.ts";
 
 export class Steps {
@@ -15,10 +15,28 @@ export class Steps {
     private readonly ffmpeg: FfmpegDriver,
   ) {}
 
-  async render({ work, signal }: StepContext): Promise<void> {
-    const part = `${work.out}.part.mp4`;
-    await this.driver.render({ ...this.specs.job(work.spec()), signal }, part);
-    await fs.promises.rename(part, work.out);
+  async render({ work, signal, part }: StepContext): Promise<{ skipped?: boolean }> {
+    const spec = work.spec();
+    if (part === undefined) {
+      await Steps.into(work.out, (out) => this.driver.render({ ...this.specs.job(spec, work), signal }, out));
+      return {};
+    }
+    const props = this.specs.storyProps(spec.body as unknown as StoryBody);
+    if (this.ffmpeg.cached(props, props.scenes[part], part) || fs.existsSync(work.part(part))) {
+      return { skipped: true };
+    }
+    try {
+      await Steps.into(work.part(part), (out) => this.driver.render({ ...this.specs.part(spec, part), signal }, out));
+    } catch (e) {
+      throw new Error(`scene ${part + 1}: ${Failure.text(e)}`);
+    }
+    return {};
+  }
+
+  private static async into(file: string, make: (out: string) => Promise<unknown>): Promise<void> {
+    const part = `${file}.part.mp4`;
+    await make(part);
+    await fs.promises.rename(part, file);
   }
 
   async prewarm({ work }: StepContext): Promise<void> {
@@ -28,7 +46,7 @@ export class Steps {
 
   async upload({ work }: StepContext): Promise<{ file: string }> {
     const spec = work.spec();
-    const target = this.specs.target(spec);
+    const target = this.specs.target(spec, work);
     const uploadUrl = spec.body.uploadUrl;
     if (typeof uploadUrl === "string" && uploadUrl) {
       await Steps.put(uploadUrl, work.out);

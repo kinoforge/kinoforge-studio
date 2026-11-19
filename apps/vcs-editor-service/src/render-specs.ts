@@ -9,12 +9,15 @@ import {
   type StoryVideoProps,
 } from "@vcs/remotion";
 import { type RenderJob, RenderTags } from "./driver.ts";
-import type { Flow } from "./queue/queue.ts";
-import type { Route, Spec } from "./queue/work.ts";
+import { type Flow, type FlowStep, FlowSteps, type Later } from "./queue/queue.ts";
+import type { Route, Spec, WorkDir } from "./queue/work.ts";
+
+export interface Composed {
+  compositionId: string;
+  inputProps: Record<string, unknown>;
+}
 
 export interface CaptionBody {
-  slug: string;
-  clip_id: string;
   clipRel: string;
   width: number;
   height: number;
@@ -22,7 +25,10 @@ export interface CaptionBody {
   inSec: number;
   durationSec: number;
   captions?: Caption[];
+  out?: string;
+  out_dir?: string;
   uploadUrl?: string;
+  callbackUrl?: string;
 }
 
 export interface StoryScene {
@@ -37,6 +43,7 @@ export interface StoryScene {
   words?: CaptionWord[];
   index?: number;
   key?: string;
+  render?: Composed;
 }
 
 export interface StoryBody {
@@ -64,9 +71,7 @@ export interface StoryBody {
   scenes: StoryScene[];
 }
 
-export interface RenderBody {
-  compositionId: string;
-  inputProps: Record<string, unknown>;
+export interface RenderBody extends Composed {
   out?: string;
   out_dir?: string;
   uploadUrl?: string;
@@ -108,6 +113,8 @@ export class Media {
 
 export class RenderSpecs {
   static readonly PREWARM_PRIORITY = -10;
+  static readonly OUT_DIR = "renders";
+  static readonly PREWARM_DELAY_MS = (Number(process.env.PREWARM_DELAY_SECONDS) || 60) * 1000;
 
   constructor(readonly media: Media) {}
 
@@ -117,19 +124,22 @@ export class RenderSpecs {
     if (route === "story" || route === "prewarm") {
       if (!Media.segment(String(b.pid ?? ""))) return "Invalid pid";
       if (!Array.isArray(b.scenes) || b.scenes.length === 0) return "Missing scenes";
+      for (const [i, scene] of (b.scenes as StoryScene[]).entries()) {
+        const wrong = scene.render ? RenderSpecs.composed(scene.render) : "";
+        if (wrong) return `scene ${i + 1}: ${wrong}`;
+      }
       return "";
     }
-    if (route === "caption") {
-      if (!Media.segment(String(b.slug ?? "")) || !Media.segment(String(b.clip_id ?? ""))) {
-        return "Invalid slug or clip_id";
-      }
-      return b.clipRel ? "" : "Missing clipRel";
-    }
-    if (!b.compositionId || typeof b.inputProps !== "object" || b.inputProps === null) {
+    if (route === "caption") return b.clipRel ? "" : "Missing clipRel";
+    return RenderSpecs.composed(b as unknown as Composed);
+  }
+
+  private static composed(c: Composed): string {
+    if (!c.compositionId || typeof c.inputProps !== "object" || c.inputProps === null) {
       return "compositionId and inputProps are required";
     }
     try {
-      EditDocs.parse(String(b.compositionId), b.inputProps as Record<string, unknown>);
+      EditDocs.parse(String(c.compositionId), c.inputProps);
       return "";
     } catch (e) {
       return String(e instanceof Error ? e.message : e);
@@ -139,9 +149,20 @@ export class RenderSpecs {
   flow(spec: Spec): Flow {
     const meta = this.meta(spec);
     if (spec.route === "prewarm") {
-      return { steps: ["fetch", "prewarm", "finish"], meta, priority: RenderSpecs.PREWARM_PRIORITY };
+      return { steps: FlowSteps.chain(["fetch", "prewarm", "finish"]), meta, priority: RenderSpecs.PREWARM_PRIORITY };
     }
-    return { steps: ["fetch", spec.route, "upload", "finish"], meta };
+    const fetch = FlowSteps.chain(["fetch"]);
+    if (spec.route !== "story") return { steps: FlowSteps.chain([spec.route, "upload", "finish"], fetch), meta };
+    const scenes = (spec.body as unknown as StoryBody).scenes;
+    const boards: FlowStep[] = scenes.flatMap((s, part) =>
+      s.render ? [{ name: `board-${part}`, kind: "board", after: ["fetch"], part }] : [],
+    );
+    return { steps: FlowSteps.chain(["story", "upload", "finish"], [...fetch, ...boards]), meta };
+  }
+
+  later(spec: Spec): Later | undefined {
+    if (spec.route !== "prewarm") return undefined;
+    return { key: `prewarm:${(spec.body as unknown as StoryBody).pid}`, delayMs: RenderSpecs.PREWARM_DELAY_MS };
   }
 
   private meta(spec: Spec): Record<string, string> {
@@ -149,16 +170,22 @@ export class RenderSpecs {
     if (spec.route === "story" || spec.route === "prewarm") {
       const story = b as unknown as StoryBody;
       const seconds = story.scenes.reduce((sum, s) => sum + (Number(s.seconds) || 0), 0);
+      const boards = story.scenes.filter((s) => s.render).length;
       return {
         route: spec.route,
         caller: story.pid,
         scenes: String(story.scenes.length),
         seconds: String(Math.round(seconds)),
+        ...(boards ? { boards: String(boards) } : {}),
       };
     }
     if (spec.route === "caption") {
       const clip = b as unknown as CaptionBody;
-      return { route: spec.route, caller: `${clip.slug}/${clip.clip_id}`, seconds: String(clip.durationSec) };
+      return {
+        route: spec.route,
+        caller: String(clip.out_dir ?? "renders").slice(0, 200),
+        seconds: String(clip.durationSec),
+      };
     }
     const render = b as unknown as RenderBody;
     return {
@@ -169,8 +196,9 @@ export class RenderSpecs {
     };
   }
 
-  storyProps(b: StoryBody): StoryVideoProps {
+  storyProps(b: StoryBody, work?: WorkDir): StoryVideoProps {
     const url = (rel: string) => this.media.url(rel);
+    const drawn = (i: number) => (work ? url(this.media.rel(work.part(i))) : undefined);
     return {
       fps: b.fps,
       width: b.width,
@@ -189,10 +217,10 @@ export class RenderSpecs {
         b.endCard?.image && b.endCard.seconds > 0
           ? { image: url(b.endCard.image), seconds: Math.min(b.endCard.seconds, 10) }
           : undefined,
-      scenes: b.scenes.map((s) => ({
+      scenes: b.scenes.map((s, i) => ({
         image: s.image ? url(s.image) : "",
         images: Array.isArray(s.images) ? s.images.map(url) : undefined,
-        video: s.video ? url(s.video) : undefined,
+        video: s.video ? url(s.video) : s.render ? drawn(i) : undefined,
         video_seconds: s.video_seconds,
         video_audio: s.video_audio === true,
         flat: s.flat === true || undefined,
@@ -205,12 +233,12 @@ export class RenderSpecs {
     } as StoryVideoProps;
   }
 
-  job(spec: Spec): RenderJob {
+  job(spec: Spec, work?: WorkDir): RenderJob {
     if (spec.route === "story" || spec.route === "prewarm") {
       const b = spec.body as unknown as StoryBody;
       return {
         compositionId: STORY_COMPOSITION_ID,
-        inputProps: this.storyProps(b) as unknown as Record<string, unknown>,
+        inputProps: this.storyProps(b, work) as unknown as Record<string, unknown>,
         metadata: RenderTags.of(b.metadata),
       };
     }
@@ -233,21 +261,16 @@ export class RenderSpecs {
     return { compositionId: b.compositionId, inputProps: b.inputProps, metadata: RenderTags.of(b.metadata) };
   }
 
-  target(spec: Spec): Target {
-    const out = this.media.outputDir;
-    if (spec.route === "caption") {
-      const b = spec.body as unknown as CaptionBody;
-      return {
-        dir: path.join(out, "videos", b.slug, "clips", b.clip_id, "variants"),
-        name: "captioned.mp4",
-        file: `${b.clip_id}/variants/captioned.mp4`,
-      };
-    }
-    const b = spec.body as unknown as StoryBody | RenderBody;
-    const story = spec.route === "story";
-    const fallbackDir = story ? `videogen/${(b as StoryBody).pid}` : "renders";
-    const name = b.out && Media.segment(b.out) && b.out.endsWith(".mp4") ? b.out : story ? "video.mp4" : "render.mp4";
-    const rel = this.media.relDir(b.out_dir) ? b.out_dir! : fallbackDir;
-    return { dir: path.join(out, rel), name, file: `${rel}/${name}` };
+  part(spec: Spec, part: number): RenderJob {
+    const scene = (spec.body as unknown as StoryBody).scenes[part];
+    if (!scene?.render) throw new Error(`scene ${part + 1} has nothing to render`);
+    return { compositionId: scene.render.compositionId, inputProps: scene.render.inputProps };
+  }
+
+  target(spec: Spec, work: WorkDir): Target {
+    const b = spec.body as { out?: string; out_dir?: string };
+    const name = b.out && Media.segment(b.out) && b.out.endsWith(".mp4") ? b.out : `${work.id}.mp4`;
+    const rel = this.media.relDir(b.out_dir) ? b.out_dir! : RenderSpecs.OUT_DIR;
+    return { dir: path.join(this.media.outputDir, rel), name, file: `${rel}/${name}` };
   }
 }

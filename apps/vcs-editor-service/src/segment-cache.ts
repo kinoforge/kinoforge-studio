@@ -17,7 +17,13 @@ export class SegmentCache {
   ) {}
 
   has(hash: string): boolean {
-    return fs.existsSync(path.join(this.dir, `${hash}.mp4`));
+    const now = new Date();
+    try {
+      fs.utimesSync(path.join(this.dir, `${hash}.mp4`), now, now);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** The scene's file: kept, being made, or made now by `make` into the path it is given. */
