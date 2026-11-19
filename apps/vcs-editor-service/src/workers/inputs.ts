@@ -38,7 +38,8 @@ export class Inputs {
       const props = this.specs.storyProps(b);
       const hosts = Inputs.hosts(b.uploadUrl);
       b.scenes.forEach((s, i) => {
-        if (this.ffmpeg.cached(props, props.scenes[i], i)) return;
+        const pin = spec.route === "story" ? work.segment(i) : undefined;
+        if (this.ffmpeg.cached(props, props.scenes[i], i, pin)) return;
         if (s.render) {
           s.render.inputProps = Inputs.walk(s.render.inputProps, ours(hosts)) as Record<string, unknown>;
           s.image = "";

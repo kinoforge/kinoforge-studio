@@ -30,6 +30,7 @@ export interface StepContext {
   signal: AbortSignal;
   error?: string;
   part?: number;
+  keepWork?: boolean;
 }
 
 export type StepHandler = (ctx: StepContext) => Promise<unknown>;

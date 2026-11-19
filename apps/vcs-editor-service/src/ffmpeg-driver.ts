@@ -46,46 +46,92 @@ const CARD_FADE_OUT = 1;
 const sceneDurationSec = (scene: StoryScene, gap: number): number =>
   (scene.seconds || 1) + ScenePause.after(scene, gap);
 
-function run(cmd: string, args: string[]): Promise<void> {
+const KILL_GRACE_MS = 2_000;
+
+function exec(
+  cmd: string,
+  args: string[],
+  opts: { stdout?: boolean; signal?: AbortSignal } = {},
+): Promise<{ stdout: string; stderr: string; code: number | null }> {
+  const { stdout: captureOut = false, signal } = opts;
+  if (signal?.aborted) {
+    return Promise.reject(signal.reason ?? new Error(`${cmd} aborted`));
+  }
   return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, { stdio: ["ignore", "ignore", "pipe"] });
+    const proc = spawn(cmd, args, { stdio: ["ignore", captureOut ? "pipe" : "ignore", "pipe"] });
+    let out = "";
     let err = "";
-    proc.stderr.on("data", (d) => {
+    let killTimer: NodeJS.Timeout | undefined;
+    let settled = false;
+
+    const cleanup = () => {
+      signal?.removeEventListener("abort", onAbort);
+      if (killTimer) clearTimeout(killTimer);
+    };
+
+    const onAbort = () => {
+      try {
+        proc.kill("SIGTERM");
+      } catch {
+      }
+      killTimer = setTimeout(() => {
+        if (proc.exitCode === null && proc.signalCode === null) {
+          try {
+            proc.kill("SIGKILL");
+          } catch {
+          }
+        }
+      }, KILL_GRACE_MS);
+      killTimer.unref();
+    };
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (captureOut && proc.stdout) {
+      proc.stdout.on("data", (d) => {
+        out += d.toString();
+      });
+    }
+    proc.stderr?.on("data", (d) => {
       err += d.toString();
     });
-    proc.on("error", reject);
-    proc.on("close", (code) =>
-      code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}: ${err.slice(-400)}`)),
-    );
+    proc.on("error", (e) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(e);
+    });
+    proc.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (signal?.aborted) {
+        reject(signal.reason ?? new Error(`${cmd} aborted`));
+        return;
+      }
+      resolve({ stdout: out, stderr: err, code });
+    });
   });
+}
+
+async function run(cmd: string, args: string[], signal?: AbortSignal): Promise<void> {
+  const { code, stderr } = await exec(cmd, args, { signal });
+  if (code !== 0) throw new Error(`ffmpeg exited ${code}: ${stderr.slice(-400)}`);
 }
 
 /** Whether the file has an audio stream: a clip from a model that makes no sound has none. */
-async function hasAudio(file: string): Promise<boolean> {
-  return (await probe(file, ["-select_streams", "a", "-show_entries", "stream=index"])) !== "";
+async function hasAudio(file: string, signal?: AbortSignal): Promise<boolean> {
+  return (await probe(file, ["-select_streams", "a", "-show_entries", "stream=index"], signal)) !== "";
 }
 
 /** ffprobe's answer for the file, trimmed. */
-function probe(file: string, entries: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(FFPROBE, ["-v", "error", ...entries, "-of", "csv=p=0", file], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let out = "";
-    let err = "";
-    proc.stdout.on("data", (d) => {
-      out += d.toString();
-    });
-    proc.stderr.on("data", (d) => {
-      err += d.toString();
-    });
-    proc.on("error", reject);
-    proc.on("close", (code) =>
-      code === 0
-        ? resolve(out.trim())
-        : reject(new Error(`ffprobe exited ${code}: ${err.slice(-400)}`)),
-    );
-  });
+async function probe(file: string, entries: string[], signal?: AbortSignal): Promise<string> {
+  const { code, stdout, stderr } = await exec(
+    FFPROBE,
+    ["-v", "error", ...entries, "-of", "csv=p=0", file],
+    { stdout: true, signal },
+  );
+  if (code !== 0) throw new Error(`ffprobe exited ${code}: ${stderr.slice(-400)}`);
+  return stdout.trim();
 }
 
 /** A track shorter than the film repeats; its end crossfades into its start so no join is heard. */
@@ -93,28 +139,32 @@ class MusicLoop {
   private static readonly FADE = 2;
 
   /** The track itself when the film fits in it, else a wav made to repeat without a seam. */
-  static async bed(music: string, length: number, work: string): Promise<string> {
-    const seconds = Number(await probe(music, ["-show_entries", "format=duration"]));
+  static async bed(music: string, length: number, work: string, signal?: AbortSignal): Promise<string> {
+    const seconds = Number(await probe(music, ["-show_entries", "format=duration"], signal));
     const fade = MusicLoop.FADE;
     if (!(seconds < length) || seconds < fade * 3) return music;
     const out = path.join(work, "bed.wav");
-    await run(FFMPEG, [
-      "-y",
-      "-i",
-      music,
-      "-filter_complex",
-      `[0:a]asplit=2[a][b];[a]atrim=start=${fade},asetpts=PTS-STARTPTS[body];` +
-        `[b]atrim=end=${fade},asetpts=PTS-STARTPTS[head];[body][head]acrossfade=d=${fade}[m]`,
-      "-map",
-      "[m]",
-      "-c:a",
-      "pcm_s16le",
-      "-ar",
-      "48000",
-      "-ac",
-      "2",
-      out,
-    ]);
+    await run(
+      FFMPEG,
+      [
+        "-y",
+        "-i",
+        music,
+        "-filter_complex",
+        `[0:a]asplit=2[a][b];[a]atrim=start=${fade},asetpts=PTS-STARTPTS[body];` +
+          `[b]atrim=end=${fade},asetpts=PTS-STARTPTS[head];[body][head]acrossfade=d=${fade}[m]`,
+        "-map",
+        "[m]",
+        "-c:a",
+        "pcm_s16le",
+        "-ar",
+        "48000",
+        "-ac",
+        "2",
+        out,
+      ],
+      signal,
+    );
     return out;
   }
 }
@@ -134,43 +184,34 @@ class Loudness {
   private static readonly MAX_CLIP_BOOST = 6;
 
   /** dB that brings the file's audio to STEM, 0 when it is silent. */
-  static async gain(file: string): Promise<number> {
-    const lufs = await Loudness.integrated(file);
+  static async gain(file: string, signal?: AbortSignal): Promise<number> {
+    const lufs = await Loudness.integrated(file, signal);
     if (lufs < Loudness.SILENT) return 0;
     return Math.max(-Loudness.MAX_GAIN, Math.min(Loudness.MAX_GAIN, Loudness.STEM - lufs));
   }
 
   /** dB for one clip's own sound: video models make each clip at its own level (one 18 dB
    *  louder than the next), so a loud clip comes down to STEM and a quiet one rises a little. */
-  static async clip(file: string): Promise<number> {
-    return Math.min(Loudness.MAX_CLIP_BOOST, await Loudness.gain(file));
+  static async clip(file: string, signal?: AbortSignal): Promise<number> {
+    return Math.min(Loudness.MAX_CLIP_BOOST, await Loudness.gain(file, signal));
   }
 
-  private static integrated(file: string): Promise<number> {
-    return new Promise((resolve, reject) => {
-      const args = [
-        "-nostats",
-        "-i",
-        file,
-        "-vn",
-        "-af",
-        "ebur128=framelog=verbose",
-        "-f",
-        "null",
-        "-",
-      ];
-      const proc = spawn(FFMPEG, args, { stdio: ["ignore", "ignore", "pipe"] });
-      let err = "";
-      proc.stderr.on("data", (d) => {
-        err += d.toString();
-      });
-      proc.on("error", reject);
-      proc.on("close", (code) => {
-        const found = /Integrated loudness:\s+I:\s+(-?[\d.]+) LUFS/.exec(err);
-        if (code === 0 && found) return resolve(Number(found[1]));
-        reject(new Error(`loudness of ${file} failed (${code}): ${err.slice(-400)}`));
-      });
-    });
+  private static async integrated(file: string, signal?: AbortSignal): Promise<number> {
+    const args = [
+      "-nostats",
+      "-i",
+      file,
+      "-vn",
+      "-af",
+      "ebur128=framelog=verbose",
+      "-f",
+      "null",
+      "-",
+    ];
+    const { code, stderr } = await exec(FFMPEG, args, { signal });
+    const found = /Integrated loudness:\s+I:\s+(-?[\d.]+) LUFS/.exec(stderr);
+    if (code === 0 && found) return Number(found[1]);
+    throw new Error(`loudness of ${file} failed (${code}): ${stderr.slice(-400)}`);
   }
 }
 
@@ -202,10 +243,17 @@ export class FfmpegDriver implements RenderDriver {
   }
 
   async render(job: RenderJob, outputLocation: string): Promise<void> {
+    job.signal?.throwIfAborted();
     const { compositionId, inputProps } = EditDocs.parse(job.compositionId, job.inputProps);
     const tags = RenderTags.args(job.metadata);
     if (compositionId === STORY_COMPOSITION_ID) {
-      return this.renderStory(inputProps as StoryVideoProps, outputLocation, tags);
+      return this.renderStory(
+        inputProps as StoryVideoProps,
+        outputLocation,
+        tags,
+        job.signal,
+        job.pinnedSegments,
+      );
     }
     const p = inputProps as ClipProps;
     const crop = ClipGeometry.resolveCrop(p);
@@ -215,31 +263,35 @@ export class FfmpegDriver implements RenderDriver {
     const { width: fw, height: fh } = ClipGeometry.formatDims(p.format);
     const duration = Math.max(0.001, p.outSec - p.inSec);
     const vf = `crop=${cw}:${ch}:${cx}:${cy},scale=${fw}:${fh}`;
-    await run(FFMPEG, [
-      "-y",
-      "-ss",
-      String(p.inSec),
-      "-i",
-      p.src,
-      "-t",
-      String(duration),
-      "-filter:v",
-      vf,
-      "-r",
-      String(p.fps),
-      "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-pix_fmt",
-      "yuv420p",
-      "-c:a",
-      "aac",
-      "-movflags",
-      "+faststart+use_metadata_tags",
-      ...tags,
-      outputLocation,
-    ]);
+    await run(
+      FFMPEG,
+      [
+        "-y",
+        "-ss",
+        String(p.inSec),
+        "-i",
+        p.src,
+        "-t",
+        String(duration),
+        "-filter:v",
+        vf,
+        "-r",
+        String(p.fps),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-movflags",
+        "+faststart+use_metadata_tags",
+        ...tags,
+        outputLocation,
+      ],
+      job.signal,
+    );
   }
 
   /**
@@ -252,6 +304,8 @@ export class FfmpegDriver implements RenderDriver {
     props: StoryVideoProps,
     outputLocation: string,
     tags: string[],
+    signal?: AbortSignal,
+    pinnedSegments?: Record<number, string>,
   ): Promise<void> {
     const fps = props.fps;
     const width = evenFloor(props.width);
@@ -261,57 +315,65 @@ export class FfmpegDriver implements RenderDriver {
     try {
       const segments: string[] = [];
       for (let i = 0; i < props.scenes.length; i++) {
-        segments.push(await this.segment(props, props.scenes[i], i, work));
+        signal?.throwIfAborted();
+        segments.push(await this.segment(props, props.scenes[i], i, work, signal, pinnedSegments?.[i]));
       }
       if (props.endCard) {
+        signal?.throwIfAborted();
         const seg = path.join(work, "end_card.mp4");
-        await this.renderEndCard(props.endCard, width, height, fps, seg);
+        await this.renderEndCard(props.endCard, width, height, fps, seg, signal);
         segments.push(seg);
       }
 
+      signal?.throwIfAborted();
       const joined = path.join(work, "joined.mp4");
       const listFile = path.join(work, "concat.txt");
       fs.writeFileSync(listFile, segments.map((s) => `file '${s}'`).join("\n"));
-      await run(FFMPEG, ["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", joined]);
+      await run(FFMPEG, ["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", joined], signal);
 
       const length = MusicBed.length(props.scenes, gap) + (props.endCard?.seconds ?? 0);
-      const bed = props.music ? await MusicLoop.bed(props.music, length, work) : null;
-      await run(FFMPEG, [
-        "-y",
-        "-i",
-        joined,
-        ...(bed ? ["-stream_loop", "-1", "-i", bed] : []),
-        "-filter_complex",
-        bed ? await this.musicMix(props, bed, gap, length, joined) : `[0:a]${MASTER}[a]`,
-        "-map",
-        "0:v",
-        "-map",
-        "[a]",
-        "-c:v",
-        "copy",
-        "-c:a",
-        "aac",
-        "-ar",
-        "48000",
-        "-ac",
-        "2",
-        "-shortest",
-        "-movflags",
-        "+faststart+use_metadata_tags",
-        ...tags,
-        outputLocation,
-      ]);
+      const bed = props.music ? await MusicLoop.bed(props.music, length, work, signal) : null;
+      await run(
+        FFMPEG,
+        [
+          "-y",
+          "-i",
+          joined,
+          ...(bed ? ["-stream_loop", "-1", "-i", bed] : []),
+          "-filter_complex",
+          bed ? await this.musicMix(props, bed, gap, length, joined, signal) : `[0:a]${MASTER}[a]`,
+          "-map",
+          "0:v",
+          "-map",
+          "[a]",
+          "-c:v",
+          "copy",
+          "-c:a",
+          "aac",
+          "-ar",
+          "48000",
+          "-ac",
+          "2",
+          "-shortest",
+          "-movflags",
+          "+faststart+use_metadata_tags",
+          ...tags,
+          outputLocation,
+        ],
+        signal,
+      );
     } finally {
       fs.rmSync(work, { recursive: true, force: true });
     }
   }
 
   /** Renders the story's scenes into the segment cache only, ahead of their assembly. */
-  async prewarm(props: StoryVideoProps): Promise<void> {
+  async prewarm(props: StoryVideoProps, signal?: AbortSignal): Promise<void> {
     const work = fs.mkdtempSync(path.join(os.tmpdir(), "prewarm-"));
     try {
       for (let i = 0; i < props.scenes.length; i++) {
-        if (props.scenes[i].key) await this.segment(props, props.scenes[i], i, work);
+        signal?.throwIfAborted();
+        if (props.scenes[i].key) await this.segment(props, props.scenes[i], i, work, signal);
       }
     } finally {
       fs.rmSync(work, { recursive: true, force: true });
@@ -324,14 +386,17 @@ export class FfmpegDriver implements RenderDriver {
     scene: StoryScene,
     position: number,
     work: string,
+    signal?: AbortSignal,
+    pinned?: string,
   ): Promise<string> {
+    if (pinned && fs.existsSync(pinned)) return Promise.resolve(pinned);
     const width = evenFloor(props.width);
     const height = evenFloor(props.height);
     const gap = typeof props.sceneGap === "number" ? props.sceneGap : DEFAULT_SCENE_GAP;
     const index = scene.index ?? position;
     const make = async (out: string) => {
       const captions = this.captionFile(props, scene, width, height, gap, work, index);
-      await this.renderScene(scene, index, width, height, props.fps, gap, out, captions);
+      await this.renderScene(scene, index, width, height, props.fps, gap, out, captions, signal);
     };
     const hash = this.segmentHash(props, scene, position);
     if (!this.segments || !hash) {
@@ -341,9 +406,10 @@ export class FfmpegDriver implements RenderDriver {
     return this.segments.get(hash, make);
   }
 
-  cached(props: StoryVideoProps, scene: StoryScene, position: number): boolean {
+  cached(props: StoryVideoProps, scene: StoryScene, position: number, pinTo?: string): boolean {
     const hash = this.segmentHash(props, scene, position);
-    return !!this.segments && !!hash && this.segments.has(hash);
+    if (!this.segments || !hash) return false;
+    return pinTo ? this.segments.pin(hash, pinTo) : this.segments.has(hash);
   }
 
   private segmentHash(props: StoryVideoProps, scene: StoryScene, position: number): string | null {
@@ -377,8 +443,12 @@ export class FfmpegDriver implements RenderDriver {
     gap: number,
     length: number,
     joined: string,
+    signal?: AbortSignal,
   ): Promise<string> {
-    const [voiceGain, musicGain] = await Promise.all([Loudness.gain(joined), Loudness.gain(music)]);
+    const [voiceGain, musicGain] = await Promise.all([
+      Loudness.gain(joined, signal),
+      Loudness.gain(music, signal),
+    ]);
     const level = props.musicVolume ?? MusicBed.LEVEL;
     const under = props.musicUnderVoice ?? MusicBed.UNDER_VOICE;
     const curve = MusicBed.expression(MusicBed.spoken(props.scenes, gap), length, level, under);
@@ -426,6 +496,7 @@ export class FfmpegDriver implements RenderDriver {
     gap: number,
     segPath: string,
     captions: string | null,
+    signal?: AbortSignal,
   ): Promise<void> {
     const dur = sceneDurationSec(scene, gap);
     const frames = Math.max(1, Math.round(dur * fps));
@@ -446,13 +517,13 @@ export class FfmpegDriver implements RenderDriver {
     if (scene.video) {
       inputs.push("-i", scene.video);
       const fit = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1`;
-      const clip = await FfmpegDriver.seconds(scene.video);
+      const clip = await FfmpegDriver.seconds(scene.video, signal);
       const holdFrames = frames - Math.round(clip * fps);
       if (clip > 0 && holdFrames > 1) {
         // A clip shorter than its scene plays once, then its last frame holds and slowly
         // closes in for the rest, so nothing restarts or freezes.
         last = `${segPath}.last.png`;
-        await FfmpegDriver.lastFrame(scene.video, last);
+        await FfmpegDriver.lastFrame(scene.video, last, signal);
         inputs.push("-i", last);
         const vignette = scene.flat ? "" : `${VIGNETTE},`;
         videoChain =
@@ -464,8 +535,8 @@ export class FfmpegDriver implements RenderDriver {
       }
       // A clip meant to speak for itself but made silent (a fallback model) plays muted, under
       // the voiceover when there is one.
-      audioLabel = scene.video_audio && (await hasAudio(scene.video)) ? "0:a" : "";
-      if (audioLabel) clipLevel = await Loudness.clip(scene.video);
+      audioLabel = scene.video_audio && (await hasAudio(scene.video, signal)) ? "0:a" : "";
+      if (audioLabel) clipLevel = await Loudness.clip(scene.video, signal);
     } else {
       // Stills: Ken Burns (alternating zoom-in / zoom-out + a gentle drift), matching the
       // composition, one picture after another with a crossfade. Upscale first so the zoom
@@ -523,18 +594,22 @@ export class FfmpegDriver implements RenderDriver {
     }
 
     try {
-      await run(FFMPEG, [
-        "-y",
-        ...inputs,
-        "-filter_complex",
-        `${videoChain};${audioChain}`,
-        "-map",
-        "[v]",
-        "-map",
-        "[a]",
-        ...FfmpegDriver.segmentOutput(fps, dur),
-        segPath,
-      ]);
+      await run(
+        FFMPEG,
+        [
+          "-y",
+          ...inputs,
+          "-filter_complex",
+          `${videoChain};${audioChain}`,
+          "-map",
+          "[v]",
+          "-map",
+          "[a]",
+          ...FfmpegDriver.segmentOutput(fps, dur),
+          segPath,
+        ],
+        signal,
+      );
     } finally {
       if (last) fs.rmSync(last, { force: true });
     }
@@ -547,31 +622,36 @@ export class FfmpegDriver implements RenderDriver {
     height: number,
     fps: number,
     segPath: string,
+    signal?: AbortSignal,
   ): Promise<void> {
     const dur = card.seconds;
     const out = Math.max(0, dur - CARD_FADE_OUT).toFixed(3);
-    await run(FFMPEG, [
-      "-y",
-      "-loop",
-      "1",
-      "-i",
-      card.image,
-      "-f",
-      "lavfi",
-      "-t",
-      String(dur),
-      "-i",
-      "anullsrc=channel_layout=stereo:sample_rate=48000",
-      "-filter_complex",
-      `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},` +
-        `format=yuv420p,fade=t=in:d=${CARD_FADE_IN},fade=t=out:st=${out}:d=${CARD_FADE_OUT}[v]`,
-      "-map",
-      "[v]",
-      "-map",
-      "1:a",
-      ...FfmpegDriver.segmentOutput(fps, dur),
-      segPath,
-    ]);
+    await run(
+      FFMPEG,
+      [
+        "-y",
+        "-loop",
+        "1",
+        "-i",
+        card.image,
+        "-f",
+        "lavfi",
+        "-t",
+        String(dur),
+        "-i",
+        "anullsrc=channel_layout=stereo:sample_rate=48000",
+        "-filter_complex",
+        `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},` +
+          `format=yuv420p,fade=t=in:d=${CARD_FADE_IN},fade=t=out:st=${out}:d=${CARD_FADE_OUT}[v]`,
+        "-map",
+        "[v]",
+        "-map",
+        "1:a",
+        ...FfmpegDriver.segmentOutput(fps, dur),
+        segPath,
+      ],
+      signal,
+    );
   }
 
   /** How every story segment is encoded, so they join without a re-encode. */
@@ -608,15 +688,18 @@ export class FfmpegDriver implements RenderDriver {
   }
 
   /** How long the clip runs; 0 when ffprobe cannot tell. */
-  private static async seconds(file: string): Promise<number> {
-    const raw = await probe(file, ["-show_entries", "format=duration"]).catch(() => "");
+  private static async seconds(file: string, signal?: AbortSignal): Promise<number> {
+    const raw = await probe(file, ["-show_entries", "format=duration"], signal).catch((e) => {
+      if (signal?.aborted) throw e;
+      return "";
+    });
     const n = Number.parseFloat(raw);
     return Number.isFinite(n) ? n : 0;
   }
 
   /** The clip's last frame as a picture. */
-  private static async lastFrame(file: string, out: string): Promise<void> {
-    await run(FFMPEG, ["-y", "-sseof", "-1", "-i", file, "-update", "1", "-an", out]);
+  private static async lastFrame(file: string, out: string, signal?: AbortSignal): Promise<void> {
+    await run(FFMPEG, ["-y", "-sseof", "-1", "-i", file, "-update", "1", "-an", out], signal);
   }
 
   private static kenBurns(

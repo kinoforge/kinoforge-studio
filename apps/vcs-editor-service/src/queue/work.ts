@@ -55,6 +55,10 @@ export class WorkDir {
     return path.join(this.dir, `part-${index}.mp4`);
   }
 
+  segment(index: number): string {
+    return path.join(this.dir, `seg-${index}.mp4`);
+  }
+
   get exists(): boolean {
     return fs.existsSync(this.dir);
   }

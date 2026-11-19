@@ -11,6 +11,7 @@ export interface RenderJob {
   codec?: "h264";
   /** Tags written into the output file's metadata (e.g. comment). */
   metadata?: Record<string, string>;
+  pinnedSegments?: Record<number, string>;
   signal?: AbortSignal;
 }
 

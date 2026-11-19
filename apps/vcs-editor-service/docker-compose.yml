@@ -10,11 +10,12 @@ services:
       - PORT=3000
       - OUTPUT_DIR=/app/output
       - EDITOR_SERVICE_TOKEN=${EDITOR_SERVICE_TOKEN:?set EDITOR_SERVICE_TOKEN}
-      - RENDER_CONCURRENCY=${EDITOR_CPUS:-2}
+      - RENDER_CONCURRENCY=${RENDER_CONCURRENCY:-1}
       - RUNNEL_URL=${RUNNEL_URL:-}
       - RUNNEL_NAMESPACE=${RUNNEL_NAMESPACE:-editor}
       - RUNNEL_KEY=${RUNNEL_KEY:-}
-      - CHROMIUM_SLOTS=${CHROMIUM_SLOTS:-2}
+      - CHROMIUM_SLOTS=${CHROMIUM_SLOTS:-1}
+      - LANE_PREPARE_CONCURRENCY=${LANE_PREPARE_CONCURRENCY:-2}
       - WORK_MIN_FREE_MB=${WORK_MIN_FREE_MB:-1024}
       - SEGMENT_CACHE_MB=${SEGMENT_CACHE_MB:-6000}
       - RENDER_CACHE_MB=${RENDER_CACHE_MB:-2000}
@@ -32,7 +33,7 @@ services:
     volumes:
       - ./.volume/output:/app/output
     # Headless Chromium needs more than Docker's 64 MB /dev/shm or renders crash.
-    shm_size: 1gb
+    shm_size: ${EDITOR_SHM:-1gb}
     cpus: ${EDITOR_CPUS:-2}
     mem_limit: ${EDITOR_MEMORY:-4g}
     healthcheck:

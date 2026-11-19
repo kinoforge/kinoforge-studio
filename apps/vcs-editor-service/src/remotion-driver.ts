@@ -11,6 +11,11 @@ const REMOTION_ENTRY = path.join(__dirname, "remotion-entry.ts");
 const CONCURRENCY = Number(process.env.RENDER_CONCURRENCY) || null;
 const WEBGL = { gl: "swangle", disableWebSecurity: true } as const;
 
+export interface RemotionLoader {
+  ensureBrowser: () => Promise<unknown>;
+  bundle: (opts: { entryPoint: string }) => Promise<string>;
+}
+
 /**
  * The Remotion render backend. The only file that imports @remotion/*, so the
  * license coupling lives here alone. Bundles the project once and reuses the
@@ -19,12 +24,19 @@ const WEBGL = { gl: "swangle", disableWebSecurity: true } as const;
  */
 export class RemotionDriver implements RenderDriver {
   private bundlePromise: Promise<string> | null = null;
-  private getBundle(): Promise<string> {
+
+  constructor(private readonly loader: RemotionLoader = { ensureBrowser, bundle }) {}
+
+  getBundle(): Promise<string> {
     if (!this.bundlePromise) {
-      this.bundlePromise = (async () => {
-        await ensureBrowser();
-        return bundle({ entryPoint: REMOTION_ENTRY });
-      })();
+      const attempt = Promise.resolve().then(async () => {
+        await this.loader.ensureBrowser();
+        return this.loader.bundle({ entryPoint: REMOTION_ENTRY });
+      });
+      this.bundlePromise = attempt;
+      attempt.catch(() => {
+        if (this.bundlePromise === attempt) this.bundlePromise = null;
+      });
     }
     return this.bundlePromise;
   }

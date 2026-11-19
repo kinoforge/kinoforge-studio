@@ -26,6 +26,27 @@ export class SegmentCache {
     }
   }
 
+  pin(hash: string, dest: string): boolean {
+    if (fs.existsSync(dest)) return true;
+    const kept = path.join(this.dir, `${hash}.mp4`);
+    const now = new Date();
+    const tmp = `${dest}.${randomUUID()}.part`;
+    try {
+      fs.utimesSync(kept, now, now);
+      try {
+        fs.linkSync(kept, tmp);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "EXDEV") throw e;
+        fs.copyFileSync(kept, tmp);
+      }
+      fs.renameSync(tmp, dest);
+      return true;
+    } catch {
+      fs.rmSync(tmp, { force: true });
+      return false;
+    }
+  }
+
   /** The scene's file: kept, being made, or made now by `make` into the path it is given. */
   get(hash: string, make: (out: string) => Promise<void>): Promise<string> {
     const kept = path.join(this.dir, `${hash}.mp4`);
@@ -58,14 +79,22 @@ export class SegmentCache {
 /** Holds a cache folder to its size: the files used longest ago go first. */
 export class CacheTrim {
   static async keep(dir: string, maxBytes: number): Promise<void> {
-    const names = (await fs.promises.readdir(dir)).filter((n) => /^[0-9a-f]+\.mp4$/.test(n));
-    const files = await Promise.all(
+    let entries: string[];
+    try {
+      entries = await fs.promises.readdir(dir);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw e;
+    }
+    const names = entries.filter((n) => /^[0-9a-f]+\.mp4$/.test(n));
+    const stats = await Promise.all(
       names.map(async (name) => {
         const file = path.join(dir, name);
-        const stat = await fs.promises.stat(file);
-        return { file, size: stat.size, used: stat.mtimeMs };
+        const stat = await fs.promises.stat(file).catch(() => null);
+        return stat ? { file, size: stat.size, used: stat.mtimeMs } : null;
       }),
     );
+    const files = stats.filter((f): f is { file: string; size: number; used: number } => f !== null);
     let total = files.reduce((sum, f) => sum + f.size, 0);
     for (const f of files.sort((a, b) => a.used - b.used)) {
       if (total <= maxBytes) break;

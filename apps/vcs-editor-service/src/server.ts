@@ -44,6 +44,7 @@ const driver = new CachingDriver(
   CACHE_DIR,
   STAMP,
   RENDER_CACHE_MB * 1024 * 1024,
+  OUTPUT_DIR,
 );
 
 
@@ -165,6 +166,10 @@ function accept(route: Route) {
 }
 
 async function settled(res: Response, run: FlowRun): Promise<void> {
+  if (res.destroyed) {
+    void run.cancel();
+    return;
+  }
   const left = () => {
     if (!res.writableEnded) void run.cancel();
   };
@@ -210,7 +215,9 @@ app.put(
 
 
 const stop = new AbortController();
+let httpServer: ReturnType<typeof app.listen> | undefined;
 process.once("SIGTERM", () => {
+  httpServer?.close();
   stop.abort();
   void queue.drained().finally(() => process.exit(0));
 });
@@ -222,6 +229,6 @@ await queue.start(stop.signal, {
   sweep: (signal) => upkeep.sweep(signal),
   doctor: (signal) => upkeep.doctor(signal),
 });
-app.listen(PORT, () => {
+httpServer = app.listen(PORT, () => {
   console.log(`vcs-editor-service listening on :${PORT} (output=${OUTPUT_DIR}, queue=${queue.name})`);
 });

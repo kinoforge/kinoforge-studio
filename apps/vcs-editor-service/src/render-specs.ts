@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import {
   CAPTIONED_COMPOSITION_ID,
@@ -236,10 +237,18 @@ export class RenderSpecs {
   job(spec: Spec, work?: WorkDir): RenderJob {
     if (spec.route === "story" || spec.route === "prewarm") {
       const b = spec.body as unknown as StoryBody;
+      const pinnedEntries =
+        spec.route === "story" && work
+          ? b.scenes.flatMap((_, i) => {
+              const seg = work.segment(i);
+              return fs.existsSync(seg) ? [[i, seg] as const] : [];
+            })
+          : [];
       return {
         compositionId: STORY_COMPOSITION_ID,
         inputProps: this.storyProps(b, work) as unknown as Record<string, unknown>,
         metadata: RenderTags.of(b.metadata),
+        ...(pinnedEntries.length > 0 ? { pinnedSegments: Object.fromEntries(pinnedEntries) } : {}),
       };
     }
     if (spec.route === "caption") {
