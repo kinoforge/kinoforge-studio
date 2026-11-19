@@ -105,6 +105,7 @@ const explainerInput = z.object({
     .regex(/^[a-z]{2}$/)
     .optional(),
   elements: elementsSchema.optional(),
+  sfx: z.boolean().optional(),
 });
 
 const skitInput = z.object({
@@ -139,6 +140,7 @@ const skitInput = z.object({
     .object({ draw: z.enum(DRAWS).optional() })
     .nullable()
     .optional(),
+  sfx: z.boolean().optional(),
 });
 
 const skit3dInput = z.object({
@@ -161,6 +163,7 @@ const skit3dInput = z.object({
     .string()
     .regex(/^[a-z]{2}$/)
     .optional(),
+  sfx: z.boolean().optional(),
 });
 
 export type EditDoc =

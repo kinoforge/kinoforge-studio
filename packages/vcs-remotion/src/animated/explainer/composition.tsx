@@ -16,11 +16,13 @@ import { MapLayer } from "./map/view.tsx";
 import { MascotFigure } from "./mascot.tsx";
 import { BoardLanguage } from "./pieces/data.tsx";
 import { Ease } from "../shared/ease.ts";
+import { SpeechMouth } from "../shared/mouth.ts";
 import { PieceView, StampBadge, StampView } from "./pieces/index.tsx";
 import { RoadScene } from "./road/scene.ts";
 import { RoadView } from "./road/view.tsx";
 import type { Beat, Board, CaptionReserve, Mascot } from "./spec.ts";
 import type { Stage } from "./stage.ts";
+import { Sfx, SfxTrack, type SfxCue } from "../shared/sfx.tsx";
 import {
   BOARD_FONT,
   type BoardColors,
@@ -52,6 +54,7 @@ export type ExplainerProps = {
   /** The narration's language (ISO 639-1), for how numbers are written. */
   language?: string;
   elements?: BoardElements;
+  sfx?: boolean;
 };
 
 export const DEFAULT_EXPLAINER_PROPS: ExplainerProps = {
@@ -239,8 +242,7 @@ class SceneExit {
 
 class ScenePose {
   static open(words: readonly CaptionWord[], t: number): number {
-    const word = words.find((entry) => t >= entry.start && t < entry.end);
-    return word ? 0.3 + 0.7 * Math.abs(Math.sin((t - word.start) * 14)) : 0;
+    return SpeechMouth.open(words, t, 15);
   }
 
   static point(starts: readonly number[], t: number): number {
@@ -297,7 +299,24 @@ class ScenePose {
  *  (spec.ts); nothing here takes a position from the writer. */
 export function ExplainerScene(props: ExplainerProps) {
   const frame = useCurrentFrame();
-  return <BoardMoment {...props} t={frame / props.fps} />;
+  const cues = useMemo<SfxCue[]>(() => {
+    if (!props.sfx) return [];
+    const starts = BoardCues.resolve(props.board.beats, props.words, props.seconds);
+    return props.board.beats.map((beat, i) => {
+      const kind = beat.piece.type === "stamp" ? "stamp" : "pop";
+      return {
+        at: starts[i] ?? 0,
+        kind,
+        volume: Sfx.VOLUMES[kind],
+      };
+    });
+  }, [props.sfx, props.board.beats, props.words, props.seconds]);
+  return (
+    <>
+      <BoardMoment {...props} t={frame / props.fps} />
+      <SfxTrack cues={cues} enabled={props.sfx} />
+    </>
+  );
 }
 
 export function BoardMoment({

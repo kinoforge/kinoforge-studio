@@ -47,6 +47,7 @@ export class StageSpots {
     right: 1,
     far_right: 2,
   };
+  static readonly TALL_INSET = 0.78;
   static readonly SPOTS: Record<Spot, [number, number]> = {
     seat: [0, -0.75],
     back_left: [-1.5, -2.4],
@@ -68,7 +69,8 @@ export class StageSpots {
 
   static spot(spot: Spot, gap: number): [number, number] {
     const [across, depth] = StageSpots.SPOTS[spot];
-    return [across * gap, depth];
+    const inset = gap <= StageSpots.TALL_GAP ? StageSpots.TALL_INSET : 1;
+    return [across * gap * inset, depth];
   }
 
   static prop(pick: PropPick, dims: PropDims, cast: readonly CastMember3D[], gap: number): PropPlace {

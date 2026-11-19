@@ -21,13 +21,14 @@ export interface PoseSpec {
   back: Point;
   hop: number;
   face: Expression;
+  raised?: boolean;
 }
 
 export const POSE_SPECS: Record<Pose, PoseSpec> = {
   idle: { lean: 0, tilt: 0, front: [5, 34], back: [-5, 34], hop: 0, face: "neutral" },
   talk: { lean: 3, tilt: 0, front: [22, 12], back: [-6, 34], hop: 0, face: "neutral" },
   point: { lean: 5, tilt: 0, front: [37, -3], back: [-6, 34], hop: 0, face: "neutral" },
-  arms_up: { lean: -3, tilt: -8, front: [14, -34], back: [-14, -34], hop: 0, face: "angry" },
+  arms_up: { lean: -3, tilt: -8, front: [14, -34], back: [-14, -34], hop: 0, face: "angry", raised: true },
   shrug: { lean: 0, tilt: 10, front: [24, -6], back: [-24, -6], hop: 0, face: "worried" },
   facepalm: { lean: 10, tilt: 14, front: [9, -14], back: [-5, 33], hop: 0, face: "tired" },
   hands_on_head: {
@@ -42,10 +43,10 @@ export const POSE_SPECS: Record<Pose, PoseSpec> = {
   type: { lean: 9, tilt: 6, front: [27, 17], back: [23, 19], hop: 0, face: "neutral" },
   think: { lean: 2, tilt: 8, front: [10, -10], back: [9, 16], hop: 0, face: "neutral" },
   cross_arms: { lean: -2, tilt: 0, front: [-7, 15], back: [9, 13], hop: 0, face: "smug" },
-  wave: { lean: 0, tilt: -4, front: [20, -30], back: [-5, 34], hop: 0, face: "happy" },
-  cheer: { lean: -2, tilt: -8, front: [12, -36], back: [-12, -36], hop: 1, face: "happy" },
+  wave: { lean: 0, tilt: -4, front: [20, -30], back: [-5, 34], hop: 0, face: "happy", raised: true },
+  cheer: { lean: -2, tilt: -8, front: [12, -36], back: [-12, -36], hop: 1, face: "happy", raised: true },
   slump: { lean: 16, tilt: 18, front: [8, 36], back: [2, 36], hop: 0, face: "sad" },
-  present: { lean: -2, tilt: -7, front: [31, -24], back: [-6, 33], hop: 0, face: "happy" },
+  present: { lean: -2, tilt: -7, front: [31, -24], back: [-6, 33], hop: 0, face: "happy", raised: true },
 };
 
 export class PoseMix {
@@ -907,7 +908,11 @@ export function StickFigure({
     frame.talk * frame.gesture * Rig.TALK.hand * Math.sin(frame.breath * Rig.RATE.hand);
   const swingArm = frame.stride > 0 ? -swing * 0.6 : 0;
   const frontTarget: Point = [arm[0] + pose.front[0] + swingArm, arm[1] + pose.front[1] + gestureY];
-  const backTarget: Point = [arm[0] + pose.back[0] - swingArm, arm[1] + pose.back[1]];
+  const backHeldLift = sit > 0.3 && member.holds ? -16 * sit : 0;
+  const backTarget: Point = [
+    arm[0] + pose.back[0] - swingArm + (sit > 0.3 && member.holds ? 10 * sit : 0),
+    arm[1] + pose.back[1] + backHeldLift,
+  ];
   const [frontElbow, frontHand] = Limb.bend(arm, frontTarget, Rig.UPPER, Rig.FORE, 1);
   const [backElbow, backHand] = Limb.bend(arm, backTarget, Rig.UPPER, Rig.FORE, -1);
   const standFeet: [Point, Point] = [

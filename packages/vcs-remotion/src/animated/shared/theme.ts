@@ -247,16 +247,36 @@ export class BoardThemes {
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   }
 
-  static bright(hex: string): boolean {
+  static luminance(hex: string): number {
     const [r, g, b] = BoardThemes.rgb(hex).map((c) => {
       const v = c / 255;
       return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
     });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.32;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  static bright(hex: string): boolean {
+    return BoardThemes.luminance(hex) > 0.32;
+  }
+
+  static contrast(a: string, b: string): number {
+    const la = BoardThemes.luminance(a);
+    const lb = BoardThemes.luminance(b);
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
   }
 
   static readable(hex: string): string {
     return BoardThemes.bright(hex) ? BoardThemes.DARK_INK : BoardThemes.LIGHT_INK;
+  }
+
+  static visibleOn(fg: string, bg: string, minRatio = 4.2): string {
+    if (BoardThemes.contrast(fg, bg) >= minRatio) return fg;
+    const target = BoardThemes.bright(bg) ? BoardThemes.DARK_INK : BoardThemes.LIGHT_INK;
+    for (let step = 0.2; step <= 1; step += 0.15) {
+      const candidate = BoardThemes.mix(fg, target, step);
+      if (BoardThemes.contrast(candidate, bg) >= minRatio) return candidate;
+    }
+    return target;
   }
 
   static mix(a: string, b: string, share: number): string {

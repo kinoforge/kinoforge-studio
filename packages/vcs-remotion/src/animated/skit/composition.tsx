@@ -7,6 +7,7 @@ import type { BoardElements } from "../shared/elements/spec.ts";
 import { Ease } from "../shared/ease.ts";
 import type { Board, CaptionReserve } from "../explainer/spec.ts";
 import type { Stage } from "../explainer/stage.ts";
+import { Sfx, SfxTrack, type SfxCue } from "../shared/sfx.tsx";
 import {
   BOARD_FONT,
   type BoardColors,
@@ -71,6 +72,7 @@ export type SkitProps = {
   elements?: BoardElements;
   drawn?: SkitBoard | null;
   next?: SkitNext | null;
+  sfx?: boolean;
 };
 
 export const DEFAULT_SKIT_PROPS: SkitProps = {
@@ -265,6 +267,8 @@ class SkitTiming {
   static readonly STEP = 0.035;
   static readonly CUT = 0.45;
   static readonly BOARD = 0.74;
+  static readonly CARD_CLEAR = 0.4;
+  static readonly BOARD_ENTER = 0.38;
 
   static spoken(words: readonly CaptionWord[], seconds: number) {
     const first = words.length ? words[0].start : 0.2;
@@ -654,7 +658,7 @@ function SetLayer({
           );
         })}
       </svg>
-      {card && cardFrom && set.card && beside < 1 ? (
+      {card && cardFrom && set.card && beside < SkitTiming.CARD_CLEAR ? (
         <RunningCard
           kind={set.card.kind}
           icon={set.card.icon}
@@ -666,7 +670,7 @@ function SetLayer({
           y={layout.card.y}
           w={layout.card.w}
           frame={layout.frame}
-          opacity={1 - beside}
+          opacity={Math.max(0, 1 - beside / SkitTiming.CARD_CLEAR)}
           palette={palette}
           t={t}
           fade={Math.min(1, Math.max(0, (seconds - t) / CardLayout.BADGE_FADE))}
@@ -698,9 +702,14 @@ function SetLayer({
           leave={-1}
           spot={(() => {
             const head = headOf(speaking);
+            const speakerPose =
+              line.acts?.find((a) => a.who === speaking.member.id)?.pose ??
+              after.members[speaking.member.id]?.pose;
+            const raised = speakerPose !== undefined && Boolean(POSE_SPECS[speakerPose]?.raised);
+            const clearance = speaking.member.holds && raised ? 14 : 5;
             return {
               x: head.x,
-              y: head.y - (Rig.HEAD + 5) * u * FigureScale.of(speaking.member),
+              y: head.y - (Rig.HEAD + clearance) * u * FigureScale.of(speaking.member),
             };
           })()}
           room={room}
@@ -718,6 +727,7 @@ function FullSpeaker({
   words,
   width,
   height,
+  reserve = "none",
   palette,
   motion,
   t,
@@ -727,6 +737,7 @@ function FullSpeaker({
   words: readonly CaptionWord[];
   width: number;
   height: number;
+  reserve?: CaptionReserve;
   palette: BoardPalette;
   motion: SkitMotion;
   t: number;
@@ -734,9 +745,11 @@ function FullSpeaker({
   const member = set.cast.find((entry) => entry.id === line.speaker);
   if (!member) return null;
   const strip = height * (1 - SkitTiming.BOARD);
-  const u = (strip * 0.86) / Rig.HEIGHT;
+  const bottomClear = reserve === "bottom" ? height * 0.16 : 0;
+  const avail = Math.max(strip * 0.45, strip - bottomClear);
+  const u = (avail * 0.84) / Rig.HEIGHT;
   const x = width * 0.18;
-  const floor = height - strip * 0.05;
+  const floor = height - bottomClear - avail * 0.04;
   const talk = SkitTiming.talk(words, t);
   const pose = PoseMix.of(
     POSE_SPECS.idle,
@@ -744,6 +757,7 @@ function FullSpeaker({
     Ease.soft(t, motion.pose_seconds, SkitTiming.STAND),
   );
   const chip = Math.min(width, height) * 0.03;
+  const roleColor = PAINTS[member.colour];
   return (
     <>
       <svg width={width} height={height} style={{ position: "absolute", inset: 0 }}>
@@ -771,14 +785,14 @@ function FullSpeaker({
         style={{
           position: "absolute",
           left: x + u * 22,
-          top: floor - strip * 0.8,
+          top: Math.max(height * SkitTiming.BOARD + 4, floor - avail * 0.8),
           fontFamily: BOARD_FONT,
           fontSize: chip,
           fontWeight: 900,
           letterSpacing: chip * 0.08,
           textTransform: "uppercase",
-          color: palette.background,
-          background: PAINTS[member.colour],
+          color: BoardThemes.readable(roleColor),
+          background: roleColor,
           borderRadius: chip * 0.5,
           padding: `${chip * 0.18}px ${chip * 0.55}px`,
           whiteSpace: "nowrap",
@@ -792,7 +806,24 @@ function FullSpeaker({
 
 export function SkitScene(props: SkitProps) {
   const frame = useCurrentFrame();
-  return <SkitMomentView {...props} t={frame / props.fps} />;
+  const cues = useMemo<SfxCue[]>(() => {
+    if (!props.sfx) return [];
+    const out: SfxCue[] = [];
+    if (props.text.trim() && props.line.draw !== "full") {
+      const { first } = SkitTiming.spoken(props.words, props.seconds);
+      out.push({ at: Math.max(0.12, first - 0.12), kind: "pop", volume: Sfx.VOLUMES.pop });
+    }
+    if ((props.line.acts ?? []).some((act) => Boolean(act.react))) {
+      out.push({ at: 0.18, kind: "spark", volume: Sfx.VOLUMES.spark });
+    }
+    return out;
+  }, [props.sfx, props.text, props.line, props.words]);
+  return (
+    <>
+      <SkitMomentView {...props} t={frame / props.fps} />
+      <SfxTrack cues={cues} enabled={props.sfx} />
+    </>
+  );
 }
 
 function BoardFrame({
@@ -943,6 +974,7 @@ export function SkitMomentView({
               words={words}
               width={width}
               height={height}
+              reserve={reserve}
               palette={palette}
               motion={motion}
               t={t}
@@ -961,7 +993,11 @@ export function SkitMomentView({
             language={language}
             elements={elements}
             palette={palette}
-            shown={beside}
+            shown={
+              before === "beside"
+                ? beside
+                : Math.max(0, (beside - SkitTiming.BOARD_ENTER) / (1 - SkitTiming.BOARD_ENTER))
+            }
             t={t}
           />
         ) : null}

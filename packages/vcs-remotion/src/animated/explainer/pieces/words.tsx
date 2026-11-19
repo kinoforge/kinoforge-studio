@@ -58,31 +58,53 @@ export function TitleView({ piece, w, h, t, palette }: PieceProps<"title">) {
 }
 
 export function NoteView({ piece, w, h, t, palette }: PieceProps<"note">) {
-  const size = FitText.size(piece.text, { w, h: h * 0.9 }, Math.round(h * 0.3), 4);
-  const sweep = Ease.out(t, 0.7, 0.25);
+  const barW = Math.max(4, Math.round(Math.min(w, h) * 0.025));
+  const padX = Math.max(10, Math.round(barW * 2.2));
+  const padY = Math.max(6, Math.round(h * 0.06));
+  const size = FitText.size(
+    piece.text,
+    { w: Math.max(40, w - barW - padX * 2), h: Math.max(32, h * 0.88 - padY * 2) },
+    Math.round(h * 0.28),
+    4,
+  );
+  const sweep = Ease.out(t, 0.55, 0.15);
   return (
-    <div style={{ display: "flex", alignItems: "center", height: "100%" }}>
+    <div style={{ display: "flex", alignItems: "center", height: "100%", width: "100%" }}>
       <div
         style={{
-          fontSize: size,
-          fontWeight: 700,
-          lineHeight: 1.22,
-          color: palette.cardInk,
-          ...FitText.clamp(4),
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          width: "100%",
+          boxSizing: "border-box",
+          padding: `${padY}px ${padX}px ${padY}px ${padX + barW}px`,
+          borderRadius: Math.max(6, barW * 1.8),
+          background: `${palette.accent}14`,
         }}
       >
-        <span
+        <div
           style={{
-            backgroundImage: `linear-gradient(${palette.accent}55, ${palette.accent}55)`,
-            backgroundRepeat: "no-repeat",
-            backgroundSize: `${sweep * 100}% 38%`,
-            backgroundPosition: "0 88%",
-            boxDecorationBreak: "clone",
-            WebkitBoxDecorationBreak: "clone",
+            position: "absolute",
+            left: padX * 0.45,
+            top: "50%",
+            width: barW,
+            height: `${Math.round((0.25 + 0.65 * sweep) * 80)}%`,
+            transform: "translateY(-50%)",
+            borderRadius: barW,
+            background: palette.accent,
+          }}
+        />
+        <div
+          style={{
+            fontSize: size,
+            fontWeight: 700,
+            lineHeight: 1.24,
+            color: palette.cardInk,
+            ...FitText.clamp(4),
           }}
         >
           {piece.text}
-        </span>
+        </div>
       </div>
     </div>
   );

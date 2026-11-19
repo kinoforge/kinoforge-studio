@@ -1,6 +1,6 @@
 import type { CaptionWord } from "../../captions.ts";
 import { Ease } from "../shared/ease.ts";
-import { BOARD_FONT, type BoardPalette } from "../shared/theme.ts";
+import { BOARD_FONT, type BoardPalette, BoardThemes } from "../shared/theme.ts";
 import { FitText } from "../shared/fit-text.ts";
 
 export interface BubbleSpot {
@@ -154,6 +154,8 @@ export function SpeechBubble({
   const tailX = Math.min(shape.x + shape.w - shape.font, Math.max(shape.x + shape.font, spot.x));
   const chip = shape.font * 0.62;
   const originX = tailX - shape.x;
+  const activeColor = BoardThemes.visibleOn(color, palette.card);
+  const chipInk = BoardThemes.readable(color);
   return (
     <div
       style={{
@@ -208,7 +210,7 @@ export function SpeechBubble({
           }}
         >
           {tokens.map((token, i) => (
-            <span key={`${i}-${token}`} style={{ color: i === current ? color : undefined }}>
+            <span key={`${i}-${token}`} style={{ color: i === current ? activeColor : undefined }}>
               {i ? " " : ""}
               {token}
             </span>
@@ -226,7 +228,7 @@ export function SpeechBubble({
             fontWeight: 900,
             letterSpacing: chip * 0.08,
             textTransform: "uppercase",
-            color: palette.background,
+            color: chipInk,
             background: color,
             borderRadius: chip * 0.5,
             padding: `${chip * 0.18}px ${chip * 0.55}px`,

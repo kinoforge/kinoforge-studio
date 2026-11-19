@@ -11,7 +11,7 @@ interface GroundLook {
   back: string;
   sky: string;
   wall: boolean;
-  scenery: "none" | "city" | "trees" | "stars" | "curtain";
+  scenery: "none" | "room" | "city" | "trees" | "stars" | "curtain";
   light: number;
 }
 
@@ -23,7 +23,7 @@ export class GroundLooks {
     const wash = (colour: string, amount: number) => BoardThemes.mix(palette.background, colour, amount);
     switch (ground) {
       case "room":
-        return { floor: wash("#8B5A2B", 0.45), back: wash("#FFFFFF", 0.35), sky: palette.background, wall: true, scenery: "none", light: 1 };
+        return { floor: wash("#8B5A2B", 0.45), back: wash("#FFFFFF", 0.35), sky: palette.background, wall: true, scenery: "room", light: 1.05 };
       case "street":
         return { floor: wash("#4A4A4A", 0.75), back: wash("#B9C4CF", 0.5), sky: wash("#9FC5E8", 0.6), wall: false, scenery: "city", light: 1.1 };
       case "park":
@@ -47,6 +47,51 @@ class Scatter {
 
 function Scenery({ look }: { look: GroundLook }) {
   const items = useMemo(() => Array.from({ length: 14 }, (_, i) => i), []);
+  if (look.scenery === "room") {
+    const trim = BoardThemes.mix(look.back, look.floor, 0.4);
+    const frame = BoardThemes.mix(look.floor, "#3E2C1E", 0.45);
+    const rug = BoardThemes.mix(look.floor, look.back, 0.25);
+    return (
+      <group>
+        <mesh position={[0, 0.008, -0.35]} receiveShadow>
+          <boxGeometry args={[5.4, 0.016, 2.7]} />
+          <meshStandardMaterial color={rug} roughness={0.95} />
+        </mesh>
+        <mesh position={[0, 0.09, GroundLooks.WALL_Z + 0.02]} receiveShadow>
+          <boxGeometry args={[26, 0.18, 0.04]} />
+          <meshStandardMaterial color={trim} roughness={0.8} />
+        </mesh>
+        <group position={[-2.6, 2.35, GroundLooks.WALL_Z + 0.03]}>
+          <mesh>
+            <boxGeometry args={[1.7, 1.35, 0.06]} />
+            <meshStandardMaterial color={frame} roughness={0.7} />
+          </mesh>
+          <mesh position={[0, 0, 0.02]}>
+            <planeGeometry args={[1.48, 1.13]} />
+            <meshBasicMaterial color="#DCECF8" />
+          </mesh>
+          <mesh position={[0, 0, 0.035]}>
+            <boxGeometry args={[0.05, 1.15, 0.02]} />
+            <meshStandardMaterial color={frame} />
+          </mesh>
+          <mesh position={[0, 0, 0.035]}>
+            <boxGeometry args={[1.5, 0.05, 0.02]} />
+            <meshStandardMaterial color={frame} />
+          </mesh>
+        </group>
+        <group position={[2.7, 2.25, GroundLooks.WALL_Z + 0.03]}>
+          <mesh>
+            <boxGeometry args={[1.15, 0.85, 0.05]} />
+            <meshStandardMaterial color={frame} roughness={0.7} />
+          </mesh>
+          <mesh position={[0, 0, 0.03]}>
+            <planeGeometry args={[0.96, 0.66]} />
+            <meshStandardMaterial color={BoardThemes.mix(look.back, "#E8A317", 0.35)} />
+          </mesh>
+        </group>
+      </group>
+    );
+  }
   if (look.scenery === "city") {
     return (
       <group>
@@ -122,10 +167,10 @@ export function Ground3D({ ground, palette }: { ground: Ground; palette: BoardPa
   return (
     <>
       <color attach="background" args={[look.sky]} />
-      <hemisphereLight args={["#FFF6E5", BoardThemes.mix(look.floor, "#000000", 0.4), 1.25 * look.light]} />
+      <hemisphereLight args={["#FFF6E5", BoardThemes.mix(look.floor, "#222222", 0.25), 1.35 * look.light]} />
       <directionalLight
         position={[5, 10, 7]}
-        intensity={2.1 * look.light}
+        intensity={1.9 * look.light}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -135,6 +180,8 @@ export function Ground3D({ ground, palette }: { ground: Ground; palette: BoardPa
         shadow-camera-bottom={-4}
         shadow-bias={-0.0004}
       />
+      <directionalLight position={[-6, 4.5, 6]} intensity={0.95 * look.light} color="#EAF2FF" />
+      <directionalLight position={[0, 5, -6]} intensity={0.6 * look.light} color="#FFF4DC" />
       <mesh rotation-x={-Math.PI / 2} receiveShadow>
         <planeGeometry args={[80, 40]} />
         <meshStandardMaterial color={look.floor} />

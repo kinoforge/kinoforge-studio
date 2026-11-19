@@ -46,12 +46,27 @@ export class BoardCues {
     return (word || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
   }
 
+  private static morphologicalMatch(a: string, b: string): boolean {
+    if (a === b) return true;
+    const min = Math.min(a.length, b.length);
+    return min >= 5 && Math.abs(a.length - b.length) <= 3 && (a.startsWith(b) || b.startsWith(a));
+  }
+
   private static find(tokens: string[], cue: string[], from: number): number {
     if (!cue.length) return -1;
-    for (const size of [cue.length, 1]) {
-      const wanted = cue.slice(0, size);
-      for (let i = from; i + size <= tokens.length; i++) {
-        if (wanted.every((token, k) => tokens[i + k] === token)) return i;
+    const matchers = [
+      (a: string, b: string) => a === b,
+      (a: string, b: string) => BoardCues.morphologicalMatch(a, b),
+    ];
+    for (const same of matchers) {
+      for (let i = from; i + cue.length <= tokens.length; i++) {
+        if (cue.every((token, k) => same(tokens[i + k], token))) return i;
+      }
+    }
+    const anchor = cue.reduce((longest, token) => (token.length > longest.length ? token : longest));
+    for (const same of matchers) {
+      for (let i = from; i < tokens.length; i++) {
+        if (same(tokens[i], anchor)) return i;
       }
     }
     return -1;

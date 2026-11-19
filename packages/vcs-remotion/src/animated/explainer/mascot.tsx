@@ -131,11 +131,32 @@ class Face {
   static mouth(mood: Mood, open: number, y: number, ink: string, glow: boolean) {
     const stroke = { stroke: ink, strokeWidth: 5, strokeLinecap: "round" as const, fill: "none" };
     const solid = glow ? stroke : { fill: ink };
-    if (open > 0.05) {
+    if (open > 0.08) {
+      const rx = 16 - 3 * open;
+      const ry = 3 + 12 * open;
+      if (mood === "surprised") {
+        return <ellipse cx={100} cy={y} rx={9 + 4 * open} ry={4 + 10 * open} {...solid} />;
+      }
+      if (mood === "sad" || mood === "thinking") {
+        return <ellipse cx={100} cy={y + 2} rx={11 - 2 * open} ry={2 + 9 * open} {...solid} />;
+      }
+      if (glow) {
+        return (
+          <path
+            d={`M ${100 - rx} ${y - 2} Q 100 ${y + ry * 1.4} ${100 + rx} ${y - 2} Q 100 ${y + 2} ${100 - rx} ${y - 2} Z`}
+            {...stroke}
+          />
+        );
+      }
       return (
         <g>
-          <ellipse cx={100} cy={y} rx={14} ry={3 + 13 * open} {...solid} />
-          {glow ? null : <ellipse cx={100} cy={y + 6 * open} rx={8} ry={4 * open} fill="#E46A6A" />}
+          <path
+            d={`M ${100 - rx} ${y - 2} Q 100 ${y + ry * 1.55} ${100 + rx} ${y - 2} Q 100 ${y + 1} ${100 - rx} ${y - 2} Z`}
+            fill={ink}
+          />
+          {open > 0.3 ? (
+            <ellipse cx={100} cy={y + ry * 0.55} rx={rx * 0.5} ry={ry * 0.35} fill="#E46A6A" />
+          ) : null}
         </g>
       );
     }

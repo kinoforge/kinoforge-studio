@@ -3,6 +3,7 @@ import * as THREE from "three";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { CaptionWord } from "../../captions.ts";
 import { Ease } from "../shared/ease.ts";
+import { SpeechMouth } from "../shared/mouth.ts";
 import { PAINTS } from "../shared/theme.ts";
 import { ClipPoses, ModelFiles, ModelFit } from "./models.ts";
 import {
@@ -49,8 +50,8 @@ export class ActorMotion {
   static readonly HEIGHT = 1.75;
   static readonly LOOPS: ReadonlySet<string> = new Set(["idle", "talk", "walk", "dance", "sit"]);
   static readonly SPEECH_RAMP = 0.35;
-  static readonly HEAD = { nod: 0.035, tilt: 0.025, nodSpeed: 3.4, tiltSpeed: 1.7 };
-  static readonly BODY = { sway: 0.018, swaySpeed: 1.3 };
+  static readonly HEAD = { nod: 0.085, tilt: 0.055, nodSpeed: 4.2, tiltSpeed: 2.1 };
+  static readonly BODY = { sway: 0.04, swaySpeed: 1.6 };
 
   static x(plan: ActorPlan, t: number): number {
     if (plan.walkEnd <= plan.walkStart) return plan.toX;
@@ -100,8 +101,7 @@ export class ActorMotion {
   }
 
   static mouth(words: readonly CaptionWord[], t: number): number {
-    const word = words.find((entry) => t >= entry.start && t < entry.end);
-    return word ? 0.25 + 0.75 * Math.abs(Math.sin((t - word.start) * 13)) : 0;
+    return SpeechMouth.open(words, t, 13);
   }
 }
 
@@ -273,24 +273,26 @@ export class ActorPlanner {
       spans.push({ start: walk.start, name: clip("walk"), loop: true });
       spans.push(resting(walk.end, rest));
     }
-    if (speech && talkName && !act) {
+    const effectiveAct = act?.action === "idle" && rest === "idle" && speech ? null : act;
+    if (speech && talkName && !effectiveAct) {
       spans.push({ start: speech.start, name: talkName, loop: true });
       spans.push(resting(speech.end, rest));
     }
-    if (!act) return spans.sort((a, b) => a.start - b.start);
-    const name = act.action === "talk" ? (talkName ?? clip("talk")) : clip(act.action);
-    if (act.action === "idle" || !name) {
-      if (after !== rest) spans.push(resting(act.at, after));
+    if (!effectiveAct) return spans.sort((a, b) => a.start - b.start);
+    const name =
+      effectiveAct.action === "talk" ? (talkName ?? clip("talk")) : clip(effectiveAct.action);
+    if (effectiveAct.action === "idle" || !name) {
+      if (after !== rest) spans.push(resting(effectiveAct.at, after));
       return spans.sort((a, b) => a.start - b.start);
     }
-    const loop = loops(act.action, name);
-    spans.push({ start: act.at, name, loop });
-    const ends = act.at + clipLength(name);
-    if (!loop && !Stage3DMemory.held(act.action)) {
+    const loop = loops(effectiveAct.action, name);
+    spans.push({ start: effectiveAct.at, name, loop });
+    const ends = effectiveAct.at + clipLength(name);
+    if (!loop && !Stage3DMemory.held(effectiveAct.action)) {
       const talks = !!speech && !!clip("talk") && after === "idle" && ends < speech.end;
       spans.push(talks ? { start: ends, name: clip("talk"), loop: true } : resting(ends, after));
       if (talks && speech) spans.push(resting(speech.end, after));
-    } else if (act.action === "talk" && speech) {
+    } else if (effectiveAct.action === "talk" && speech) {
       spans.push(resting(speech.end, after));
     }
     return spans.sort((a, b) => a.start - b.start);

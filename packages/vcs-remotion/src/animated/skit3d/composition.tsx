@@ -7,6 +7,7 @@ import type { CaptionWord } from "../../captions.ts";
 import type { CaptionReserve } from "../explainer/spec.ts";
 import { Ease } from "../shared/ease.ts";
 import { FitText } from "../shared/fit-text.ts";
+import { Sfx, SfxTrack, type SfxCue } from "../shared/sfx.tsx";
 import { BOARD_FONT, type BoardColors, type BoardTheme, BoardThemes, PAINTS } from "../shared/theme.ts";
 import { Actor3D, ActorMotion, type ActorPlan, ActorPlanner } from "./actor.tsx";
 import { type CameraPlace, type Cover, type Framed, ShotPlanner } from "./camera.ts";
@@ -48,6 +49,7 @@ export type Skit3DProps = {
   colors?: BoardColors | null;
   reserve?: CaptionReserve;
   language?: string;
+  sfx?: boolean;
 };
 
 export const DEFAULT_SKIT3D_PROPS: Skit3DProps = {
@@ -88,6 +90,11 @@ class StagePlans {
     return width >= height ? StageSpots.GAP : StageSpots.TALL_GAP;
   }
 
+  static modelKey(models: SceneModels, member: CastMember3D): string {
+    const byId = `cast:${member.id}`;
+    return models[byId] ? byId : member.look;
+  }
+
   static lines(props: Skit3DProps): Skit3DLine[] {
     return [...(props.history ?? []).map((moment) => moment.line), props.line];
   }
@@ -116,7 +123,8 @@ class StagePlans {
     const { first, last } = LineTiming.spoken(words, seconds);
     const plans = new Map<string, ActorPlan>();
     for (const member of set.cast) {
-      const model = props.models[member.look];
+      const modelKey = StagePlans.modelKey(props.models, member);
+      const model = props.models[modelKey];
       if (model?.kind !== "rig") continue;
       const now = state[member.id];
       const act = Stage3DMemory.act(line, member.id);
@@ -149,8 +157,8 @@ class StagePlans {
         walks ? { start: walkStart, end: walkEnd } : null,
         act?.act ? { action: act.act, at } : null,
         speech,
-        (name) => clips.length(member.look, name),
-        (name) => clips.settles(member.look, name),
+        (name) => clips.length(modelKey, name),
+        (name) => clips.settles(modelKey, name),
       );
       plans.set(member.id, {
         member,
@@ -414,7 +422,7 @@ export function Skit3DMomentView(props: Skit3DProps & { t: number }) {
         <Ground3D ground={props.set.ground} palette={palette} />
         <Props3D props={[...places.keys()]} models={props.models} files={files} places={places} />
         {plans.map((plan) => {
-          const model = props.models[plan.member.look] as RiggedModel;
+          const model = props.models[StagePlans.modelKey(props.models, plan.member)] as RiggedModel;
           return (
             <Actor3D
               key={plan.member.id}
@@ -442,7 +450,16 @@ export function Skit3DMomentView(props: Skit3DProps & { t: number }) {
 
 export function Skit3DScene(props: Skit3DProps) {
   const frame = useCurrentFrame();
-  return <Skit3DMomentView {...props} t={frame / props.fps} />;
+  const cues = useMemo<SfxCue[]>(
+    () => (props.sfx && props.text.trim() ? [{ at: 0.05, kind: "pop", volume: Sfx.VOLUMES.pop }] : []),
+    [props.sfx, props.text],
+  );
+  return (
+    <>
+      <Skit3DMomentView {...props} t={frame / props.fps} />
+      <SfxTrack cues={cues} enabled={props.sfx} />
+    </>
+  );
 }
 
 export const skit3dCalcMeta: CalculateMetadataFunction<Skit3DProps> = ({ props }) => ({

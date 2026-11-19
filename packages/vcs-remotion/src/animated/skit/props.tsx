@@ -11,15 +11,33 @@ export function SetPiece({ name, palette, t }: { name: string; palette: BoardPal
   const kind = SkitPictures.built(name, SET_PROPS);
   if (!kind) {
     const size = SetPieces.SIZE;
+    const w = size + 14;
+    const h = size + 12;
     return (
-      <SetGlyph
-        name={name}
-        x={-size / 2}
-        y={-size}
-        size={size}
-        color={palette.accent2}
-        stroke={1.6}
-      />
+      <g>
+        <line x1={-12} y1={0} x2={-7} y2={-10} stroke={ink} strokeWidth={1.6} strokeLinecap="round" />
+        <line x1={12} y1={0} x2={7} y2={-10} stroke={ink} strokeWidth={1.6} strokeLinecap="round" />
+        <rect
+          x={-w / 2}
+          y={-h - 8}
+          width={w}
+          height={h}
+          rx={5}
+          fill={palette.card}
+          fillOpacity={0.85}
+          stroke={ink}
+          strokeOpacity={0.5}
+          strokeWidth={1.4}
+        />
+        <SetGlyph
+          name={name}
+          x={-size / 2}
+          y={-size - 14}
+          size={size}
+          color={palette.accent2}
+          stroke={1.6}
+        />
+      </g>
     );
   }
   const stroke = { stroke: ink, strokeWidth: 1.3, strokeLinecap: "round" as const, fill: "none" };
