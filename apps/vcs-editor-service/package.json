@@ -4,14 +4,19 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "web:dev": "vite --config web/vite.config.ts",
     "web:build": "vite build --config web/vite.config.ts",
+    "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web/tsconfig.json"
   },
   "dependencies": {
+    "@kinoforge/runnel": "github:kinoforge/runnel-js#a5d1e8883831f17d2ab5495558edbc65c3a1f1ae",
     "@remotion/bundler": "^4",
     "@remotion/player": "^4",
     "@remotion/renderer": "^4",
@@ -24,7 +29,7 @@
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",

@@ -11,6 +11,7 @@ export interface RenderJob {
   codec?: "h264";
   /** Tags written into the output file's metadata (e.g. comment). */
   metadata?: Record<string, string>;
+  signal?: AbortSignal;
 }
 
 /** A caller's metadata, kept to short plain-text tags, and as ffmpeg arguments. */

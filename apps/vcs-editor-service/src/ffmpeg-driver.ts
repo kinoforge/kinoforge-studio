@@ -333,18 +333,30 @@ export class FfmpegDriver implements RenderDriver {
       const captions = this.captionFile(props, scene, width, height, gap, work, index);
       await this.renderScene(scene, index, width, height, props.fps, gap, out, captions);
     };
-    if (!this.segments || !scene.key || props.reuseScenes === false) {
+    const hash = this.segmentHash(props, scene, position);
+    if (!this.segments || !hash) {
       const out = path.join(work, `seg_${index}.mp4`);
       return make(out).then(() => out);
     }
-    const hash = createHash("sha256")
+    return this.segments.get(hash, make);
+  }
+
+  cached(props: StoryVideoProps, scene: StoryScene, position: number): boolean {
+    const hash = this.segmentHash(props, scene, position);
+    return !!this.segments && !!hash && this.segments.has(hash);
+  }
+
+  private segmentHash(props: StoryVideoProps, scene: StoryScene, position: number): string | null {
+    if (!this.segments || !scene.key || props.reuseScenes === false) return null;
+    const gap = typeof props.sceneGap === "number" ? props.sceneGap : DEFAULT_SCENE_GAP;
+    return createHash("sha256")
       .update(
         JSON.stringify([
           this.stamp,
           scene.key,
-          index,
-          width,
-          height,
+          scene.index ?? position,
+          evenFloor(props.width),
+          evenFloor(props.height),
           props.fps,
           gap,
           props.showCaptions,
@@ -355,7 +367,6 @@ export class FfmpegDriver implements RenderDriver {
         ]),
       )
       .digest("hex");
-    return this.segments.get(hash, make);
   }
 
   /** Voice and music brought to one loudness, the bed ducked under every scene that speaks

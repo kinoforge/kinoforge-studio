@@ -65,7 +65,8 @@ absolute URL), renders, and either writes to `OUTPUT_DIR` or PUTs the result to 
 | POST | `/v1/kits/animated/explainer/fit` | checks drawn boards for text that does not fit |
 | POST | `/v1/render` | generic command: `{compositionId, inputProps}` in, mp4 out (bad shape is a 400) |
 | POST | `/caption` | burn a caption track onto an already cut clip |
-| POST | `/render-story` | assemble scene images or clips with voiceover, captions, and music into one mp4 |
+| POST | `/render-story` | assemble scene images or clips with voiceover, captions, and music into one mp4; with `callbackUrl` it answers 202 and posts `{ok, file}` or `{ok:false, error}` there when done |
+| POST | `/prewarm-story` | render a story's finished scenes into the scene cache ahead of its assembly |
 | PUT | `/v1/source` | upload a local source file, get a `/media` URL back |
 | GET | `/media/*` | serve `OUTPUT_DIR` so the headless renderer reads frames off the volume |
 
@@ -102,6 +103,46 @@ renders leave room for anything else on the box.
 | `RENDER_CONCURRENCY` | half the cores | frames Remotion paints at once |
 | `FFMPEG_PATH` | `ffmpeg` | ffmpeg binary for the fast lane |
 | `EDITOR_SERVICE_TOKEN` | unset | bearer every caller must send; unset disables the check (local dev) |
+| `SEGMENT_CACHE_MB`, `RENDER_CACHE_MB` | `6000`, `2000` | the scene and render caches' size limits |
+| `WORK_MIN_FREE_MB` | `1024` | a render waits for its inputs while the disk has less free than this |
+| `FETCH_HOSTS` | the upload host | extra hosts whose URLs in render props are fetched ahead |
+| `LANE_<QUEUE>_CONCURRENCY`, `_ATTEMPTS`, `_TIMEOUT_SECONDS` | see below | per lane limits |
+| `CHROMIUM_SLOTS` | `2` | Remotion renders at once, captions and boards together |
+| `SWEEP_EVERY_MINUTES`, `DOCTOR_EVERY_MINUTES` | `10`, `5` | how often the upkeep chores run |
+| `RUNNEL_URL`, `RUNNEL_NAMESPACE`, `RUNNEL_KEY` | unset, `editor`, unset | run renders on a [Runnel](https://github.com/kinoforge/runnel) queue |
+
+## Render queue
+
+Every render is a flow of steps, each on its own lane:
+
+| Lane | Steps | Default concurrency | What it does |
+|---|---|---|---|
+| `prepare` | `fetch` | 4 | downloads the render's inputs next to it; a story skips scenes already in the scene cache |
+| `story` | `story`, `prewarm` | 1 | ffmpeg story assembly; prewarm runs behind real renders |
+| `board`, `caption` | `board`, `caption` | 2 each, `CHROMIUM_SLOTS` together | Remotion renders |
+| `deliver` | `upload` | 2 | PUTs the file to `uploadUrl`, or writes it under `OUTPUT_DIR` |
+| `notify` | `finish` | 4 | posts the outcome to `callbackUrl` and removes the render's work folder |
+| `chores` | `sweep`, `doctor` | 1 | `sweep` removes work no render holds, stale temp files and trims caches; `doctor` repairs renders whose failure was not reported, trims caches when the disk runs low and logs a health line |
+
+A render's request stays in `OUTPUT_DIR/work/<id>`; only its id and a few labels travel with
+its jobs.
+
+Without `RUNNEL_URL` the lanes run inside the process: nothing is retried and a restart drops
+renders in flight. With `RUNNEL_URL` they run on Runnel: each step is retried with backoff, a
+render survives restarts and deploys, lane limits hold across every editor sharing the
+namespace, and each chore runs on one worker at a time. The editor creates its queue, pool
+and schedule settings on first start; later changes in Runnel win. To run Runnel next to
+the editor:
+
+```sh
+COMPOSE_PROFILES=runnel docker compose up -d runnel
+RUNNEL="docker run --rm --network vcs-editor curlimages/curl -su admin:$RUNNEL_ADMIN_TOKEN"
+$RUNNEL -X PUT http://vcs-editor-runnel:8700/v1/namespaces/editor
+$RUNNEL http://vcs-editor-runnel:8700/v1/namespaces/editor/keys \
+  -d '{"name":"editor","roles":["producer","worker","reader","admin"]}'
+# put RUNNEL_URL=http://vcs-editor-runnel:8700 and the key in .env, then
+COMPOSE_PROFILES=runnel docker compose up -d
+```
 
 ## Docker
 

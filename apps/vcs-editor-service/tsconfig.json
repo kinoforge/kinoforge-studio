@@ -14,5 +14,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src/**/*", "../../packages/vcs-remotion/src/**/*"]
+  "include": ["src/**/*", "test/**/*", "../../packages/vcs-remotion/src/**/*"]
 }

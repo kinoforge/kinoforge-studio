@@ -16,6 +16,10 @@ export class SegmentCache {
     private readonly maxBytes: number,
   ) {}
 
+  has(hash: string): boolean {
+    return fs.existsSync(path.join(this.dir, `${hash}.mp4`));
+  }
+
   /** The scene's file: kept, being made, or made now by `make` into the path it is given. */
   get(hash: string, make: (out: string) => Promise<void>): Promise<string> {
     const kept = path.join(this.dir, `${hash}.mp4`);

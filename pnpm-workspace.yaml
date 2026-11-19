@@ -3,3 +3,4 @@ packages:
   - packages/*
 allowBuilds:
   esbuild: true
+  "@kinoforge/runnel@https://codeload.github.com/kinoforge/runnel-js/tar.gz/a5d1e8883831f17d2ab5495558edbc65c3a1f1ae": true

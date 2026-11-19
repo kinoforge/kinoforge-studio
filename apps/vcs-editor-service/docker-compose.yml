@@ -11,8 +11,17 @@ services:
       - OUTPUT_DIR=/app/output
       - EDITOR_SERVICE_TOKEN=${EDITOR_SERVICE_TOKEN:?set EDITOR_SERVICE_TOKEN}
       - RENDER_CONCURRENCY=${EDITOR_CPUS:-2}
+      - RUNNEL_URL=${RUNNEL_URL:-}
+      - RUNNEL_NAMESPACE=${RUNNEL_NAMESPACE:-editor}
+      - RUNNEL_KEY=${RUNNEL_KEY:-}
+      - CHROMIUM_SLOTS=${CHROMIUM_SLOTS:-2}
+      - WORK_MIN_FREE_MB=${WORK_MIN_FREE_MB:-1024}
+      - SEGMENT_CACHE_MB=${SEGMENT_CACHE_MB:-6000}
+      - RENDER_CACHE_MB=${RENDER_CACHE_MB:-2000}
     networks:
       - traefik
+      - editor
+    stop_grace_period: 45s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.vcs-editor-service.rule=Host(`${EDITOR_HOST:-renderer-svc.kinoforge.dev}`)"
@@ -38,6 +47,38 @@ services:
         max-size: 20m
         max-file: "3"
 
+  runnel:
+    image: ghcr.io/kinoforge/runnel:${RUNNEL_VERSION:-0.0.4-beta.1}
+    container_name: vcs-editor-runnel
+    profiles: ["runnel"]
+    restart: unless-stopped
+    command: ["serve"]
+    environment:
+      - RUNNEL_STORE=hybrid:/data/runnel
+      - RUNNEL_ADMIN_TOKEN=${RUNNEL_ADMIN_TOKEN:?set RUNNEL_ADMIN_TOKEN}
+      - RUNNEL_MAINTAINER_RETENTION_COMPLETED=72h
+      - RUNNEL_MAINTAINER_RETENTION_CANCELLED=72h
+      - RUNNEL_MAINTAINER_RETENTION_DEAD=168h
+      - RUNNEL_MAINTAINER_RETENTION_EVENTS=168h
+    volumes:
+      - runnel-data:/data
+    networks:
+      - editor
+    mem_limit: 256m
+    labels:
+      - "traefik.enable=false"
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "3"
+
+volumes:
+  runnel-data:
+
 networks:
   traefik:
     external: true
+  editor:
+    name: vcs-editor
+    internal: true

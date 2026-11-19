@@ -1,18 +1,18 @@
-FROM node:24-bookworm-slim AS build
+FROM node:26.13.1-trixie-slim AS build
 ENV CI=true
-RUN corepack enable && corepack prepare pnpm@11.18.0 --activate
+RUN npm install -g pnpm@11.18.0
 WORKDIR /repo
 COPY . .
 RUN pnpm install --prod --frozen-lockfile --filter vcs-editor-service...
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:26.13.1-trixie-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ffmpeg \
       libnss3 \
       libdbus-1-3 \
-      libatk1.0-0 \
-      libatk-bridge2.0-0 \
-      libcups2 \
+      libatk1.0-0t64 \
+      libatk-bridge2.0-0t64 \
+      libcups2t64 \
       libdrm2 \
       libxkbcommon0 \
       libxcomposite1 \
@@ -20,10 +20,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libxfixes3 \
       libxrandr2 \
       libgbm1 \
-      libasound2 \
+      libasound2t64 \
       libpango-1.0-0 \
       libcairo2 \
-      libatspi2.0-0 \
+      libatspi2.0-0t64 \
       fonts-dejavu-core \
       fonts-noto-core \
       ca-certificates \
