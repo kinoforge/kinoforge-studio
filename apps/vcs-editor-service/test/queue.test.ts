@@ -246,6 +246,20 @@ describe("inputs", () => {
     work.remove();
   });
 
+  test("a drawn scene never fetches a still it does not show", async () => {
+    asked.length = 0;
+    const inputs = new Inputs(specs, { cached: () => false } as unknown as FfmpegDriver);
+    const render = { compositionId: "Skit3DScene", inputProps: {} };
+    const spec = {
+      route: "story" as const,
+      body: story({ scenes: [{ image: `${base}/m/gone.png?t=1`, audio: `${base}/m/a.mp3?t=2`, seconds: 2, key: "a", render }] }),
+    };
+    const work = WorkDir.create(spec);
+    await inputs.fetch({ work, signal: new AbortController().signal });
+    assert.deepEqual(asked, ["/m/a.mp3?t=2"]);
+    work.remove();
+  });
+
   test("board props fetch only urls on the upload host, never other text", async () => {
     asked.length = 0;
     const inputs = new Inputs(specs, { cached: () => false } as unknown as FfmpegDriver);

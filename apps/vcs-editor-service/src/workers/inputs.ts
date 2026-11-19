@@ -39,9 +39,14 @@ export class Inputs {
       const hosts = Inputs.hosts(b.uploadUrl);
       b.scenes.forEach((s, i) => {
         if (this.ffmpeg.cached(props, props.scenes[i], i)) return;
-        if (s.render) s.render.inputProps = Inputs.walk(s.render.inputProps, ours(hosts)) as Record<string, unknown>;
-        s.image = local(s.image) as string;
-        if (s.images) s.images = s.images.map((x) => local(x) as string);
+        if (s.render) {
+          s.render.inputProps = Inputs.walk(s.render.inputProps, ours(hosts)) as Record<string, unknown>;
+          s.image = "";
+          delete s.images;
+        } else {
+          s.image = local(s.image) as string;
+          if (s.images) s.images = s.images.map((x) => local(x) as string);
+        }
         if (s.video) s.video = local(s.video) as string;
         if (s.audio) s.audio = local(s.audio) as string;
       });
