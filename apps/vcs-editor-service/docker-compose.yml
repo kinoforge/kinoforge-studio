@@ -49,7 +49,7 @@ services:
         max-file: "3"
 
   runnel:
-    image: ghcr.io/kinoforge/runnel:${RUNNEL_VERSION:-0.0.4-beta.1}
+    image: ghcr.io/kinoforge/runnel:${RUNNEL_VERSION:-0.0.4-beta.2}
     container_name: vcs-editor-runnel
     profiles: ["runnel"]
     restart: unless-stopped
