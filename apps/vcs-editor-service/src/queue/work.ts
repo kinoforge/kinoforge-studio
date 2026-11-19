@@ -86,6 +86,15 @@ export class WorkDir {
     fs.renameSync(part, file);
   }
 
+  claim(name: string): boolean {
+    try {
+      fs.writeFileSync(path.join(this.dir, name), "", { flag: "wx" });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   remove(): void {
     fs.rmSync(this.dir, { recursive: true, force: true });
   }

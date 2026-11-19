@@ -69,8 +69,9 @@ absolute URL), renders, and either writes to `OUTPUT_DIR` or PUTs the result to 
 | POST | `/prewarm-story` | render a story's finished scenes into the scene cache ahead of its assembly, once a burst of calls for the same `pid` goes quiet for `PREWARM_DELAY_SECONDS` (60) |
 
 Every render route takes `out_dir` and `out` (else it writes `renders/<id>.mp4`) or an
-`uploadUrl` to PUT the file to. With a `callbackUrl` it answers 202 and posts `{ok, file}` or
-`{ok:false, error}` there when done; without one it answers when the render ends.
+`uploadUrl` to PUT the file to. With a `callbackUrl` it answers 202, posts `{started: true}`
+there once rendering begins (time spent queued is not render time), and `{ok, file}` or
+`{ok:false, error}` when done; without one it answers when the render ends.
 | PUT | `/v1/source` | upload a local source file, get a `/media` URL back |
 | GET | `/media/*` | serve `OUTPUT_DIR` so the headless renderer reads frames off the volume |
 

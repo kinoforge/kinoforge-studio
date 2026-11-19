@@ -12,7 +12,9 @@ import { RunnelQueue } from "../src/queue/runnel-queue.ts";
 import { WorkDir } from "../src/queue/work.ts";
 import { Media, RenderSpecs } from "../src/render-specs.ts";
 import { Inputs } from "../src/workers/inputs.ts";
+import { Steps } from "../src/workers/steps.ts";
 import { Upkeep } from "../src/workers/upkeep.ts";
+import type { RenderDriver } from "../src/driver.ts";
 
 const output = fs.mkdtempSync(path.join(os.tmpdir(), "editor-queue-"));
 WorkDir.use(output);
@@ -277,6 +279,33 @@ describe("inputs", () => {
     const props = (work.spec().body as { inputProps: { link: string } }).inputProps;
     assert.equal(props.link, "https://example.com/a.png");
     work.remove();
+  });
+});
+
+describe("steps", () => {
+  test("a render tells its caller once that it started, however many steps it has", async () => {
+    const notices: unknown[] = [];
+    const server = http.createServer((req, res) => {
+      let text = "";
+      req.on("data", (c) => (text += c));
+      req.on("end", () => {
+        notices.push(JSON.parse(text));
+        res.end("{}");
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const callbackUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/done`;
+    const driver = { render: async (_job: unknown, out: string) => fs.writeFileSync(out, "mp4") } as unknown as RenderDriver;
+    const steps = new Steps(specs, driver, { cached: () => false } as unknown as FfmpegDriver);
+    const spec = { route: "board" as const, body: { compositionId: "ExplainerScene", inputProps: {}, callbackUrl } };
+    const work = WorkDir.create(spec);
+    const signal = new AbortController().signal;
+    await steps.render({ work, signal });
+    await steps.render({ work, signal });
+    await new Promise((r) => setTimeout(r, 50));
+    server.close();
+    work.remove();
+    assert.deepEqual(notices, [{ started: true }]);
   });
 });
 

@@ -6,6 +6,7 @@ import type { StoryVideoProps } from "@vcs/remotion";
 import type { RenderDriver } from "../driver.ts";
 import type { FfmpegDriver } from "../ffmpeg-driver.ts";
 import { Failure, type Outcome, type StepContext } from "../queue/queue.ts";
+import type { WorkDir } from "../queue/work.ts";
 import type { RenderSpecs, StoryBody } from "../render-specs.ts";
 
 export class Steps {
@@ -17,6 +18,7 @@ export class Steps {
 
   async render({ work, signal, part }: StepContext): Promise<{ skipped?: boolean }> {
     const spec = work.spec();
+    Steps.started(work, spec.body.callbackUrl, signal);
     if (part === undefined) {
       await Steps.into(work.out, (out) => this.driver.render({ ...this.specs.job(spec, work), signal }, out));
       return {};
@@ -72,7 +74,14 @@ export class Steps {
     return outcome;
   }
 
-  static async callBack(url: string, outcome: Outcome, signal: AbortSignal): Promise<void> {
+  private static started(work: WorkDir, url: unknown, signal: AbortSignal): void {
+    if (typeof url !== "string" || !url || !work.claim("started")) return;
+    Steps.callBack(url, { started: true }, signal).catch((e) =>
+      console.warn(`render ${work.id} start notice failed: ${Failure.text(e)}`),
+    );
+  }
+
+  static async callBack(url: string, outcome: Outcome | { started: true }, signal: AbortSignal): Promise<void> {
     const res = await fetch(url, {
       method: "POST",
       signal,
