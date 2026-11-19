@@ -49,14 +49,13 @@ export class MapScene {
     return { script, area, band, places, views, from };
   }
 
-  /** A region's view, or one around everything on the map, or the world. */
+  /** A region's view unioned with active points, or fitted around active points, or the world. */
   static view(
     region: MapRegion | null,
     shape: MapShape,
     places: ReadonlyMap<string, StagePlace>,
     area: Box,
   ): MapView {
-    if (region) return MapViews.fit(MapViews.region(region), area);
     const countries = World.countries();
     const points: LonLat[] = [
       ...[...shape.pins, ...shape.routes.flatMap((route) => route.via)].flatMap((id) => {
@@ -65,6 +64,19 @@ export class MapScene {
       }),
       ...[...shape.zones.keys()].flatMap((code) => countries.get(code)?.corners ?? []),
     ];
-    return MapViews.fit(MapViews.around(points) ?? MapViews.region("world"), area);
+    const around = MapViews.around(points);
+    if (region) {
+      const base = MapViews.region(region);
+      const box: [number, number, number, number] = around
+        ? [
+            Math.min(base[0], around[0]),
+            Math.min(base[1], around[1]),
+            Math.max(base[2], around[2]),
+            Math.max(base[3], around[3]),
+          ]
+        : base;
+      return MapViews.fit(box, area);
+    }
+    return MapViews.fit(around ?? MapViews.region("world"), area);
   }
 }

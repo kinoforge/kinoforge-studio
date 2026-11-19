@@ -65,12 +65,15 @@ export class ShotPlanner {
     const across = Math.atan(Math.tan(fov) * aspect);
     const room = ShotPlanner.ROOM[shot];
     const fits = Math.max(width / 2 / Math.tan(across), height / clear / 2 / Math.tan(fov)) * room;
-    const most = (ShotPlanner.MOST_SEEN * tallest) / clear / 2 / Math.tan(fov);
+    const most =
+      ((ShotPlanner.MOST_SEEN * tallest) / clear / 2 / Math.tan(fov)) *
+      (shot === "close" ? 1 : Math.max(1, 0.95 / aspect));
     const capped = fits > most;
     const distance = Math.min(fits, most) * (1 - ShotPlanner.PUSH * progress);
     const seen = 2 * distance * Math.tan(fov);
     const middle = (left + right) / 2;
-    const centre = capped ? middle + (subjects[0].x - middle) * ShotPlanner.LEAN : middle;
+    const centre =
+      capped && shot === "close" ? middle + (subjects[0].x - middle) * ShotPlanner.LEAN : middle;
     const lookY = bottom + height / 2 - ((cover.bottom - cover.top) / 2) * seen;
     const swing = shot === "wide" ? 0 : side * ShotPlanner.SIDE;
     return {

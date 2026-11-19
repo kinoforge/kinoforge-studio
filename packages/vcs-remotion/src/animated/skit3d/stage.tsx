@@ -66,15 +66,15 @@ function Scenery({ look }: { look: GroundLook }) {
             <boxGeometry args={[1.7, 1.35, 0.06]} />
             <meshStandardMaterial color={frame} roughness={0.7} />
           </mesh>
-          <mesh position={[0, 0, 0.02]}>
+          <mesh position={[0, 0, 0.033]}>
             <planeGeometry args={[1.48, 1.13]} />
             <meshBasicMaterial color="#DCECF8" />
           </mesh>
-          <mesh position={[0, 0, 0.035]}>
+          <mesh position={[0, 0, 0.038]}>
             <boxGeometry args={[0.05, 1.15, 0.02]} />
             <meshStandardMaterial color={frame} />
           </mesh>
-          <mesh position={[0, 0, 0.035]}>
+          <mesh position={[0, 0, 0.038]}>
             <boxGeometry args={[1.5, 0.05, 0.02]} />
             <meshStandardMaterial color={frame} />
           </mesh>
@@ -84,7 +84,7 @@ function Scenery({ look }: { look: GroundLook }) {
             <boxGeometry args={[1.15, 0.85, 0.05]} />
             <meshStandardMaterial color={frame} roughness={0.7} />
           </mesh>
-          <mesh position={[0, 0, 0.03]}>
+          <mesh position={[0, 0, 0.028]}>
             <planeGeometry args={[0.96, 0.66]} />
             <meshStandardMaterial color={BoardThemes.mix(look.back, "#E8A317", 0.35)} />
           </mesh>

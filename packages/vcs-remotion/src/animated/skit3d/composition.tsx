@@ -131,15 +131,16 @@ class StagePlans {
       const entering = now.place === OFF && Stage3DMemory.joins(line, member, act?.move);
       const target = act?.move ?? (entering ? member.place : now.place);
       const slot = seat && model.clips[SEAT_ACT] ? StageSpots.slot(member, set.cast, seat) : null;
-      const wasSeated = slot !== null && now.rest === SEAT_ACT;
+      const atSeat = slot !== null && now.seated;
+      const wasSeated = atSeat && now.rest === SEAT_ACT;
       const sitsDown = slot !== null && !wasSeated && act?.act === SEAT_ACT && !act.move;
       const home = StageSpots.x(member.place, gap);
       const placeX = now.place === OFF ? StageSpots.wing(member.place, home) : StageSpots.x(now.place, gap);
-      const fromX = wasSeated && slot !== null ? slot : placeX;
+      const fromX = atSeat && slot !== null ? slot : placeX;
       const toX =
         target === OFF
           ? StageSpots.wing(member.place, fromX)
-          : slot !== null && (sitsDown || (wasSeated && !act?.move))
+          : slot !== null && (sitsDown || (atSeat && !act?.move))
             ? slot
             : StageSpots.x(target, gap);
       const walks = Math.abs(toX - fromX) > 0.01;

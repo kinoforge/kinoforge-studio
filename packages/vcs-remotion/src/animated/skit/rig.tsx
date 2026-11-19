@@ -908,11 +908,17 @@ export function StickFigure({
     frame.talk * frame.gesture * Rig.TALK.hand * Math.sin(frame.breath * Rig.RATE.hand);
   const swingArm = frame.stride > 0 ? -swing * 0.6 : 0;
   const frontTarget: Point = [arm[0] + pose.front[0] + swingArm, arm[1] + pose.front[1] + gestureY];
-  const backHeldLift = sit > 0.3 && member.holds ? -16 * sit : 0;
-  const backTarget: Point = [
-    arm[0] + pose.back[0] - swingArm + (sit > 0.3 && member.holds ? 10 * sit : 0),
-    arm[1] + pose.back[1] + backHeldLift,
-  ];
+  const hold = SkitPictures.built(member.holds, HOLDS);
+  const forward = hold === "pointer" || hold === "microphone";
+  const holdsBack = Boolean(member.holds) && !forward;
+  const backTarget: Point = holdsBack
+    ? sit > 0.3
+      ? [arm[0] + 16, arm[1] + 17]
+      : [arm[0] + 18, arm[1] + 14]
+    : [
+        arm[0] + pose.back[0] - swingArm,
+        arm[1] + pose.back[1],
+      ];
   const [frontElbow, frontHand] = Limb.bend(arm, frontTarget, Rig.UPPER, Rig.FORE, 1);
   const [backElbow, backHand] = Limb.bend(arm, backTarget, Rig.UPPER, Rig.FORE, -1);
   const standFeet: [Point, Point] = [
@@ -939,8 +945,6 @@ export function StickFigure({
       strokeLinejoin="round"
     />
   );
-  const hold = SkitPictures.built(member.holds, HOLDS);
-  const forward = hold === "pointer" || hold === "microphone";
   const art = Rig.HEAD * Rig.HEAD_ART;
   const held = forward ? (
     <Held member={member} hand={frontHand} elbow={frontElbow} mirror={mirror} palette={palette} />
@@ -950,8 +954,7 @@ export function StickFigure({
   return (
     <g>
       {line([hip, backKnee, backFoot], Rig.STROKE * 0.92)}
-      {line([arm, backElbow, backHand], Rig.STROKE * 0.92)}
-      {forward ? null : held}
+      {holdsBack ? null : line([arm, backElbow, backHand], Rig.STROKE * 0.92)}
       {line([hip, frontKnee, frontFoot])}
       {line([hip, shoulder])}
       <Garment member={member} hip={hip} shoulder={shoulder} ink={ink} />
@@ -980,8 +983,9 @@ export function StickFigure({
         )}
         <Hat member={member} ink={ink} />
       </g>
+      {holdsBack ? line([arm, backElbow, backHand], Rig.STROKE * 0.92) : null}
       {line([arm, frontElbow, frontHand])}
-      {forward ? held : null}
+      {held}
     </g>
   );
 }

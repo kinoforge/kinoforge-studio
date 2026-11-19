@@ -37,6 +37,10 @@ export class SkitRest {
 }
 
 export class CardMemory {
+  private static same(a: string, b: string): boolean {
+    return a.trim().toLowerCase() === b.trim().toLowerCase();
+  }
+
   static start(set: SkitSet): CardState | null {
     if (!set.card) return null;
     return {
@@ -51,23 +55,28 @@ export class CardMemory {
   static apply(card: CardState, change: CardChange): CardState {
     switch (change.do) {
       case "tag":
-        return card.tags.includes(change.text)
+        return card.tags.some((tag) => CardMemory.same(tag, change.text))
           ? card
           : { ...card, tags: [...card.tags, change.text] };
       case "tick":
         return {
           ...card,
-          tags: card.tags.includes(change.text) ? card.tags : [...card.tags, change.text],
-          done: card.done.includes(change.text) ? card.done : [...card.done, change.text],
+          tags: card.tags.some((tag) => CardMemory.same(tag, change.text))
+            ? card.tags
+            : [...card.tags, change.text],
+          done: card.done.some((tag) => CardMemory.same(tag, change.text))
+            ? card.done
+            : [...card.done, change.text],
         };
       case "untag":
         return {
           ...card,
-          tags: card.tags.filter((tag) => tag !== change.text),
-          done: card.done.filter((tag) => tag !== change.text),
+          tags: card.tags.filter((tag) => !CardMemory.same(tag, change.text)),
+          done: card.done.filter((tag) => !CardMemory.same(tag, change.text)),
+          badges: card.badges.filter((tag) => !CardMemory.same(tag, change.text)),
         };
       case "badge":
-        return card.badges.includes(change.text)
+        return card.badges.some((tag) => CardMemory.same(tag, change.text))
           ? card
           : { ...card, badges: [...card.badges, change.text] };
       case "set":

@@ -8,6 +8,7 @@ import {
   type PropPick,
   type Rest,
   SEAT,
+  SEAT_ACT,
   type Skit3DLine,
   type Skit3DSet,
   type Spot,
@@ -16,6 +17,7 @@ import {
 export interface Member3DState {
   place: Move;
   rest: Rest;
+  seated: boolean;
 }
 
 export type Stage3DState = Record<string, Member3DState>;
@@ -83,13 +85,14 @@ export class StageSpots {
       return { x: spotX, z, turn, scale: [1, 1, 1], wide: long };
     }
     const homes = cast.map((member) => StageSpots.x(member.place, gap));
-    const stretch = long > 0 ? Math.max(1, (cast.length * StageSpots.SEAT_SPACE) / long) : 1;
+    const wide = Math.max(dims.wide, 0.4);
+    const stretch = Math.max(1, (cast.length * StageSpots.SEAT_SPACE) / wide);
     return {
       x: (Math.min(...homes) + Math.max(...homes)) / 2,
       z,
-      turn: base,
-      scale: across ? [1, 1, stretch] : [stretch, 1, 1],
-      wide: long * stretch,
+      turn: 0,
+      scale: [stretch, 1, 1],
+      wide: wide * stretch,
     };
   }
 
@@ -103,7 +106,7 @@ export class StageSpots {
 export class Stage3DMemory {
   static start(set: Skit3DSet): Stage3DState {
     return Object.fromEntries(
-      set.cast.map((member) => [member.id, { place: member.enters ? OFF : member.place, rest: "idle" }]),
+      set.cast.map((member) => [member.id, { place: member.enters ? OFF : member.place, rest: "idle", seated: false }]),
     );
   }
 
@@ -120,7 +123,11 @@ export class Stage3DMemory {
       const act = Stage3DMemory.act(line, member.id);
       const entering = now.place === OFF && Stage3DMemory.joins(line, member, act?.move);
       const place = act?.move ?? (entering ? member.place : now.place);
-      next[member.id] = { place, rest: Stage3DMemory.rest(now.rest, act?.act, act?.move) };
+      next[member.id] = {
+        place,
+        rest: Stage3DMemory.rest(now.rest, act?.act, act?.move),
+        seated: !act?.move && (now.seated || act?.act === SEAT_ACT),
+      };
     }
     return next;
   }
@@ -132,7 +139,7 @@ export class Stage3DMemory {
 
   static rest(now: Rest, act: Action | undefined, move: Move | undefined): Rest {
     if (move) return "idle";
-    if (!act) return now;
+    if (!act || act === "idle") return now;
     return Stage3DMemory.held(act) ? act : "idle";
   }
 

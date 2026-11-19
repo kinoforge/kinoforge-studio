@@ -21,6 +21,7 @@ import { BoardCues } from "../explainer/timeline.ts";
 import { SetBackdrop } from "./backdrop.tsx";
 import { BubbleShape, SpeechBubble } from "./bubble.tsx";
 import { CardLayout, RunningCard } from "./card.tsx";
+import { SkitPictures } from "./glyph.tsx";
 import { SetPiece } from "./props.tsx";
 import { ReactionMark, ReactionTiming } from "./reactions.tsx";
 import { Chair, DeskSet, type FigureFrame, POSE_SPECS, PoseMix, Rig, StickFigure } from "./rig.tsx";
@@ -31,6 +32,7 @@ import {
   FigureScale,
   type Move,
   OFF,
+  SET_PROPS,
   type SkitLine,
   type SkitSet,
 } from "./spec.ts";
@@ -552,6 +554,15 @@ function SetLayer({
     : null;
   const chairs = set.cast.filter((member) => member.stance === "sit");
   const desks = set.cast.filter((member) => (member.desk ?? "none") !== "none");
+  const seatedPlaces = new Set([...chairs, ...desks].map((member) => member.place));
+  const wallProps = new Set(["whiteboard", "clock", "window"]);
+  const hasDeskOrChair = chairs.length > 0 || desks.length > 0;
+  const visibleProps = (set.props ?? []).filter((prop) => {
+    if (hasDeskOrChair && /\b(chair|desk|lamp)\b/i.test(prop.kind)) return false;
+    if (!seatedPlaces.has(prop.place)) return true;
+    const built = SkitPictures.built(prop.kind, SET_PROPS);
+    return built !== null && wallProps.has(built);
+  });
   const anchorX = (member: CastMember) => CastMotion.x(member, member.place, span);
   const sitOf = (member: CastMember) =>
     placed.find((entry) => entry.member.id === member.id)?.frame.sit ?? 0;
@@ -595,7 +606,7 @@ function SetLayer({
           strokeOpacity={0.35}
           strokeWidth={Math.max(2, u * 0.8)}
         />
-        {(set.props ?? []).map((prop) => (
+        {visibleProps.map((prop) => (
           <g
             key={`${prop.kind}-${prop.place}`}
             transform={`translate(${view.left + SkitPlaces.share(prop.place) * view.span} ${view.floor}) scale(${u})`}

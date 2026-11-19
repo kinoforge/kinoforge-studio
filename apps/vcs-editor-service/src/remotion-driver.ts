@@ -9,6 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REMOTION_ENTRY = path.join(__dirname, "remotion-entry.ts");
 // Browser tabs painting frames at once; Remotion's own default is half the cores.
 const CONCURRENCY = Number(process.env.RENDER_CONCURRENCY) || null;
+const MAX_RENDERS = Math.max(1, Number(process.env.MAX_CONCURRENT_RENDERS) || 2);
 const WEBGL = { gl: "swangle", disableWebSecurity: true } as const;
 
 /**
@@ -19,6 +20,23 @@ const WEBGL = { gl: "swangle", disableWebSecurity: true } as const;
  */
 export class RemotionDriver implements RenderDriver {
   private bundlePromise: Promise<string> | null = null;
+  private active = 0;
+  private readonly queue: (() => void)[] = [];
+
+  private async acquire(): Promise<void> {
+    if (this.active < MAX_RENDERS) {
+      this.active++;
+      return;
+    }
+    await new Promise<void>((resolve) => this.queue.push(resolve));
+    this.active++;
+  }
+
+  private release(): void {
+    this.active--;
+    const next = this.queue.shift();
+    if (next) next();
+  }
 
   private getBundle(): Promise<string> {
     if (!this.bundlePromise) {
@@ -32,24 +50,29 @@ export class RemotionDriver implements RenderDriver {
 
   async render(job: RenderJob, outputLocation: string): Promise<void> {
     const { compositionId, inputProps } = EditDocs.parse(job.compositionId, job.inputProps);
-    const serveUrl = await this.getBundle();
-    const codec = job.codec ?? "h264";
-    const composition = await selectComposition({
-      serveUrl,
-      id: compositionId,
-      inputProps,
-      chromiumOptions: EditDocs.webgl(compositionId) ? WEBGL : {},
-    });
-    await renderMedia({
-      composition,
-      serveUrl,
-      codec,
-      concurrency: CONCURRENCY,
-      x264Preset: codec === "h264" ? "veryfast" : null,
-      inputProps,
-      outputLocation,
-      chromiumOptions: EditDocs.webgl(compositionId) ? WEBGL : {},
-      metadata: job.metadata ?? null,
-    });
+    await this.acquire();
+    try {
+      const serveUrl = await this.getBundle();
+      const codec = job.codec ?? "h264";
+      const composition = await selectComposition({
+        serveUrl,
+        id: compositionId,
+        inputProps,
+        chromiumOptions: EditDocs.webgl(compositionId) ? WEBGL : {},
+      });
+      await renderMedia({
+        composition,
+        serveUrl,
+        codec,
+        concurrency: CONCURRENCY,
+        x264Preset: codec === "h264" ? "veryfast" : null,
+        inputProps,
+        outputLocation,
+        chromiumOptions: EditDocs.webgl(compositionId) ? WEBGL : {},
+        metadata: job.metadata ?? null,
+      });
+    } finally {
+      this.release();
+    }
   }
 }

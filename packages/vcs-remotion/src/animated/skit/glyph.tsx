@@ -8,7 +8,13 @@ export class SkitPictures {
       .trim()
       .toLowerCase()
       .replace(/[\s-]+/g, "_");
-    return (kinds as readonly string[]).includes(key) ? (key as T) : null;
+    const list = kinds as readonly string[];
+    if (list.includes(key)) return key as T;
+    const parts = key.split("_").filter(Boolean);
+    for (const candidate of [parts.at(-1), parts[0]]) {
+      if (candidate && list.includes(candidate)) return candidate as T;
+    }
+    return null;
   }
 }
 
