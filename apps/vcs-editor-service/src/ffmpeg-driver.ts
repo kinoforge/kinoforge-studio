@@ -735,7 +735,7 @@ export class FfmpegDriver implements RenderDriver {
     return (
       `scale=${width * KB_UPSCALE}:${height * KB_UPSCALE}:force_original_aspect_ratio=increase,` +
       `crop=${width * KB_UPSCALE}:${height * KB_UPSCALE},${vignette ? `${VIGNETTE},` : ""}` +
-      `zoompan=z='${z}':x='${x}':y='${y}':d=${frames}:s=${width}x${height}:fps=${fps},setpts=PTS-STARTPTS`
+      `zoompan=z='${z}':x='${x}':y='${y}':d=${frames}:s=${width}x${height}:fps=${fps},setpts=PTS-STARTPTS,fps=${fps}`
     );
   }
 }

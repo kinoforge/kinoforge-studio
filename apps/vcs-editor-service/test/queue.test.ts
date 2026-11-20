@@ -591,6 +591,11 @@ describe("high and medium fixes", () => {
     assert.equal(calls, 2);
   });
 
+  test("each still's move leaves at a constant frame rate, as xfade on ffmpeg 7 needs", () => {
+    const kenBurns = (FfmpegDriver as unknown as { kenBurns: (...a: unknown[]) => string }).kenBurns;
+    assert.match(kenBurns(true, 50, 1920, 1080, 30, true), /setpts=PTS-STARTPTS,fps=30$/);
+  });
+
   test("an ffmpeg failure names the line that caused it, not the closing noise", () => {
     const stderr = [
       "Input #0, image2, from 'scene_1.jpg':",
