@@ -113,9 +113,20 @@ function exec(
   });
 }
 
+const CAUSE = /error|invalid|failed|cannot|unable|no such|not found|does not|too |unknown|mismatch/i;
+const NOISE = /^(frame=|Conversion failed|\[out#|\s*$)|Terminating thread|Task finished with error/;
+
+export function ffmpegFailure(code: number | null, stderr: string): string {
+  const causes = stderr
+    .split(/\r?\n/)
+    .filter((line) => CAUSE.test(line) && !NOISE.test(line))
+    .slice(0, 4);
+  return `ffmpeg exited ${code}: ${(causes.join(" | ") || stderr.slice(-400)).slice(0, 600)}`;
+}
+
 async function run(cmd: string, args: string[], signal?: AbortSignal): Promise<void> {
   const { code, stderr } = await exec(cmd, args, { signal });
-  if (code !== 0) throw new Error(`ffmpeg exited ${code}: ${stderr.slice(-400)}`);
+  if (code !== 0) throw new Error(ffmpegFailure(code, stderr));
 }
 
 /** Whether the file has an audio stream: a clip from a model that makes no sound has none. */

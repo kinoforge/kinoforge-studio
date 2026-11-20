@@ -8,7 +8,7 @@ import { after, before, describe, test } from "node:test";
 import { Code } from "@kinoforge/runnel";
 import { State } from "@kinoforge/runnel/rpc";
 import { CachingDriver } from "../src/caching-driver.ts";
-import { FfmpegDriver } from "../src/ffmpeg-driver.ts";
+import { FfmpegDriver, ffmpegFailure } from "../src/ffmpeg-driver.ts";
 import { LocalQueue } from "../src/queue/local-queue.ts";
 import type { Handlers, StepContext } from "../src/queue/queue.ts";
 import { RunnelQueue } from "../src/queue/runnel-queue.ts";
@@ -589,6 +589,20 @@ describe("high and medium fixes", () => {
     const url = await driver.getBundle();
     assert.equal(url, "http://127.0.0.1:9999/bundle");
     assert.equal(calls, 2);
+  });
+
+  test("an ffmpeg failure names the line that caused it, not the closing noise", () => {
+    const stderr = [
+      "Input #0, image2, from 'scene_1.jpg':",
+      "[Parsed_zoompan_2 @ 0x1] Invalid size 0x0",
+      "[vost#0:0/libx264 @ 0x2] Task finished with error code: -22 (Invalid argument)",
+      "[vost#0:0/libx264 @ 0x2] Terminating thread with return code -22 (Invalid argument)",
+      "[out#0/mp4 @ 0x3] Nothing was written into output file, because at least one of its streams received no packets.",
+      "frame=    0 fps=0.0 q=0.0 Lsize=       0KiB time=N/A bitrate=N/A speed=N/A",
+      "Conversion failed!",
+    ].join("\n");
+    assert.equal(ffmpegFailure(234, stderr), "ffmpeg exited 234: [Parsed_zoompan_2 @ 0x1] Invalid size 0x0");
+    assert.equal(ffmpegFailure(1, "tail only"), "ffmpeg exited 1: tail only");
   });
 
   test("RemotionDriver builds the bundle again when its folder was deleted", async () => {
