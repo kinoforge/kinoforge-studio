@@ -591,6 +591,38 @@ describe("high and medium fixes", () => {
     assert.equal(calls, 2);
   });
 
+  test("RemotionDriver builds the bundle again when its folder was deleted", async () => {
+    let builds = 0;
+    const driver = new RemotionDriver({
+      ensureBrowser: async () => undefined,
+      bundle: async () => {
+        builds++;
+        const dir = fs.mkdtempSync(path.join(output, "bundle-"));
+        fs.writeFileSync(path.join(dir, "index.html"), "");
+        return dir;
+      },
+    });
+    const first = await driver.getBundle();
+    assert.equal(await driver.getBundle(), first);
+    fs.rmSync(first, { recursive: true, force: true });
+    const second = await driver.getBundle();
+    assert.notEqual(second, first);
+    assert.ok(fs.existsSync(path.join(second, "index.html")));
+    assert.equal(builds, 2);
+    fs.rmSync(second, { recursive: true, force: true });
+  });
+
+  test("the sweep keeps the live Remotion bundle and removes old render temp", async () => {
+    const old = new Date(Date.now() - 2 * Upkeep.STALE_MS);
+    const bundle = fs.mkdtempSync(path.join(os.tmpdir(), "remotion-webpack-bundle-"));
+    const stale = fs.mkdtempSync(path.join(os.tmpdir(), "render-"));
+    for (const dir of [bundle, stale]) fs.utimesSync(dir, old, old);
+    await new Upkeep(new LocalQueue(handlers()), []).sweep(new AbortController().signal);
+    assert.equal(fs.existsSync(bundle), true);
+    assert.equal(fs.existsSync(stale), false);
+    fs.rmSync(bundle, { recursive: true, force: true });
+  });
+
   test("CachingDriver hits across different work dirs with identical input files and writes atomically", async () => {
     const cacheDir = fs.mkdtempSync(path.join(output, "render-cache-"));
     try {

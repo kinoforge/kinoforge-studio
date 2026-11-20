@@ -13,6 +13,7 @@ export interface CacheDir {
 }
 
 const TEMP_PREFIXES = ["story-", "prewarm-", "render-", "remotion-"];
+const LIVE_BUNDLE = "remotion-webpack-bundle-";
 
 export class Upkeep {
   static readonly STALE_MS = 2 * Math.max(...Lanes.ALL.map((l) => l.timeoutMs));
@@ -36,7 +37,7 @@ export class Upkeep {
       parts += await Upkeep.removeStale(cache.dir, (name) => name.endsWith(".part.mp4"));
       await Upkeep.trim(cache, cache.maxBytes);
     }
-    const temp = await Upkeep.removeStale(os.tmpdir(), (name) => TEMP_PREFIXES.some((p) => name.startsWith(p)));
+    const temp = await Upkeep.removeStale(os.tmpdir(), (name) => !name.startsWith(LIVE_BUNDLE) && TEMP_PREFIXES.some((p) => name.startsWith(p)));
     const swept = { work, parts, temp };
     if (work || parts || temp) console.log(JSON.stringify({ sweep: swept }));
     return swept;

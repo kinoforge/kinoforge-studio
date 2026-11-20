@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bundle } from "@remotion/bundler";
@@ -24,14 +25,21 @@ export interface RemotionLoader {
  */
 export class RemotionDriver implements RenderDriver {
   private bundlePromise: Promise<string> | null = null;
+  private built: string | null = null;
 
   constructor(private readonly loader: RemotionLoader = { ensureBrowser, bundle }) {}
 
   getBundle(): Promise<string> {
+    if (this.built && RemotionDriver.gone(this.built)) {
+      this.built = null;
+      this.bundlePromise = null;
+    }
     if (!this.bundlePromise) {
       const attempt = Promise.resolve().then(async () => {
         await this.loader.ensureBrowser();
-        return this.loader.bundle({ entryPoint: REMOTION_ENTRY });
+        const built = await this.loader.bundle({ entryPoint: REMOTION_ENTRY });
+        this.built = built;
+        return built;
       });
       this.bundlePromise = attempt;
       attempt.catch(() => {
@@ -39,6 +47,10 @@ export class RemotionDriver implements RenderDriver {
       });
     }
     return this.bundlePromise;
+  }
+
+  private static gone(built: string): boolean {
+    return !/^https?:/.test(built) && !fs.existsSync(path.join(built, "index.html"));
   }
 
   async render(job: RenderJob, outputLocation: string): Promise<void> {
