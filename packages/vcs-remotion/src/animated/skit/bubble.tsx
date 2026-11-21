@@ -111,7 +111,7 @@ export class BubbleShape {
 
 export function SpeechBubble({
   text,
-  role,
+  name,
   color,
   words,
   t,
@@ -123,7 +123,7 @@ export function SpeechBubble({
   palette,
 }: {
   text: string;
-  role: string;
+  name: string;
   color: string;
   words: readonly CaptionWord[];
   t: number;
@@ -217,7 +217,7 @@ export function SpeechBubble({
           ))}
         </div>
       </div>
-      {role ? (
+      {name ? (
         <div
           style={{
             position: "absolute",
@@ -236,7 +236,7 @@ export function SpeechBubble({
             boxShadow: glow ? `0 0 ${glow}px ${color}` : "none",
           }}
         >
-          {role}
+          {name}
         </div>
       ) : null}
     </div>

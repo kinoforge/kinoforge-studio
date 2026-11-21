@@ -690,7 +690,7 @@ function SetLayer({
       {last && lastSpeaker && lastSpot ? (
         <SpeechBubble
           text={last.text}
-          role={lastSpeaker.role}
+          name={lastSpeaker.name}
           color={PAINTS[lastSpeaker.colour]}
           words={[]}
           t={t}
@@ -705,7 +705,7 @@ function SetLayer({
       {speaking ? (
         <SpeechBubble
           text={text}
-          role={speaking.member.role}
+          name={speaking.member.name}
           color={PAINTS[speaking.member.colour]}
           words={words}
           t={t}
@@ -809,7 +809,7 @@ function FullSpeaker({
           whiteSpace: "nowrap",
         }}
       >
-        {member.role}
+        {member.name}
       </div>
     </>
   );
