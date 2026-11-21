@@ -187,13 +187,21 @@ export class EditDocs {
     [SKIT3D_COMPOSITION_ID]: skit3dInput,
   } as const;
 
+  private static readonly extra = new Map<string, z.ZodType>();
+
   static readonly WEBGL: ReadonlySet<string> = new Set([SKIT3D_COMPOSITION_ID]);
+
+  static extend(schemas: Record<string, z.ZodType>): void {
+    for (const [id, schema] of Object.entries(schemas)) EditDocs.extra.set(id, schema);
+  }
 
   static webgl(compositionId: string): boolean {
     return EditDocs.WEBGL.has(compositionId);
   }
 
   static parse(compositionId: string, inputProps: unknown): EditDoc {
+    const extra = EditDocs.extra.get(compositionId);
+    if (extra) return { compositionId, inputProps: extra.parse(inputProps) } as EditDoc;
     if (!EditDocs.known(compositionId)) throw new Error(`unknown compositionId: ${compositionId}`);
     const parsed = EditDocs.schemas[compositionId].parse(inputProps);
     return { compositionId, inputProps: parsed } as EditDoc;

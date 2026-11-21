@@ -19,6 +19,7 @@ services:
       - WORK_MIN_FREE_MB=${WORK_MIN_FREE_MB:-1024}
       - SEGMENT_CACHE_MB=${SEGMENT_CACHE_MB:-6000}
       - RENDER_CACHE_MB=${RENDER_CACHE_MB:-2000}
+      - REMOTION_PLUGIN=${REMOTION_PLUGIN:-}
     networks:
       - traefik
       - editor
@@ -32,6 +33,7 @@ services:
       - "traefik.http.services.vcs-editor-service.loadbalancer.server.port=3000"
     volumes:
       - ./.volume/output:/app/output
+      - ./.volume/plugins:/plugins:ro
     # Headless Chromium needs more than Docker's 64 MB /dev/shm or renders crash.
     shm_size: ${EDITOR_SHM:-1gb}
     cpus: ${EDITOR_CPUS:-2}

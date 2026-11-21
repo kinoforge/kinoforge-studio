@@ -27,7 +27,10 @@ export class RemotionDriver implements RenderDriver {
   private bundlePromise: Promise<string> | null = null;
   private built: string | null = null;
 
-  constructor(private readonly loader: RemotionLoader = { ensureBrowser, bundle }) {}
+  constructor(
+    private readonly loader: RemotionLoader = { ensureBrowser, bundle },
+    private readonly entry: string = REMOTION_ENTRY,
+  ) {}
 
   getBundle(): Promise<string> {
     if (this.built && RemotionDriver.gone(this.built)) {
@@ -37,7 +40,7 @@ export class RemotionDriver implements RenderDriver {
     if (!this.bundlePromise) {
       const attempt = Promise.resolve().then(async () => {
         await this.loader.ensureBrowser();
-        const built = await this.loader.bundle({ entryPoint: REMOTION_ENTRY });
+        const built = await this.loader.bundle({ entryPoint: this.entry });
         this.built = built;
         return built;
       });

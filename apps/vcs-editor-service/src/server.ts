@@ -15,6 +15,7 @@ import { RemotionDriver } from "./remotion-driver.ts";
 import { Media, RenderSpecs } from "./render-specs.ts";
 import { SmartDriver } from "./smart-driver.ts";
 import { SegmentCache } from "./segment-cache.ts";
+import { RenderPlugin } from "./plugin.ts";
 import { RendererStamp } from "./stamp.ts";
 import { Inputs } from "./workers/inputs.ts";
 import { Steps } from "./workers/steps.ts";
@@ -26,7 +27,8 @@ const CACHE_DIR = process.env.RENDER_CACHE_DIR || path.join(OUTPUT_DIR, ".render
 const SEGMENT_DIR = process.env.SEGMENT_CACHE_DIR || path.join(OUTPUT_DIR, ".segment-cache");
 const SEGMENT_CACHE_MB = Number(process.env.SEGMENT_CACHE_MB || 6000);
 const RENDER_CACHE_MB = Number(process.env.RENDER_CACHE_MB || 2000);
-const STAMP = RendererStamp.of();
+const plugin = await RenderPlugin.load(process.env.REMOTION_PLUGIN);
+const STAMP = RendererStamp.of(plugin ? [plugin.dir] : []);
 const ffmpeg = new FfmpegDriver(
   new SegmentCache(SEGMENT_DIR, SEGMENT_CACHE_MB * 1024 * 1024),
   STAMP,
@@ -38,7 +40,7 @@ const ffmpeg = new FfmpegDriver(
 const driver = new CachingDriver(
   new SmartDriver(
     ffmpeg,
-    new RemotionDriver(),
+    new RemotionDriver(undefined, plugin?.entry),
     (doc) => FfmpegDriver.supports(doc) || FfmpegDriver.supportsStory(doc),
   ),
   CACHE_DIR,
