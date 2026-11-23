@@ -30,6 +30,12 @@ import {
   skit3dCalcMeta,
 } from "./animated/skit3d/composition.tsx";
 import {
+  DEFAULT_WHITEBOARD_PROPS,
+  WHITEBOARD_COMPOSITION_ID,
+  WhiteboardFilm,
+  whiteboardCalcMeta,
+} from "./animated/whiteboard/composition.tsx";
+import {
   DEFAULT_STORY_PROPS,
   STORY_COMPOSITION_ID,
   StoryVideo,
@@ -98,6 +104,16 @@ export function RemotionRoot() {
         height={720}
         defaultProps={DEFAULT_SKIT3D_PROPS}
         calculateMetadata={skit3dCalcMeta}
+      />
+      <Composition
+        id={WHITEBOARD_COMPOSITION_ID}
+        component={WhiteboardFilm}
+        durationInFrames={180}
+        fps={60}
+        width={1080}
+        height={1920}
+        defaultProps={DEFAULT_WHITEBOARD_PROPS}
+        calculateMetadata={whiteboardCalcMeta}
       />
     </>
   );
