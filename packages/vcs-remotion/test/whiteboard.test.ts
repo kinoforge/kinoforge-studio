@@ -164,6 +164,34 @@ test("a wide scene keeps its title at the top and gives the side pieces the room
   assert.ok(side > area.h * 0.55, `side pieces get ${side} of ${area.h}`);
 });
 
+test("a wide scene sets a matrix and a plot side by side under its title", async () => {
+  const { SceneLayout } = await import("../src/animated/whiteboard/layout.ts");
+  const scene = wbFilmSchema.parse({
+    fps: 30,
+    width: 1920,
+    height: 1080,
+    scenes: [
+      {
+        seconds: 20,
+        beats: [
+          { piece: { type: "title", text: "Matrix as a move" } },
+          { piece: { type: "matrix", cells: [[2, 1], [1, 3]] } },
+          { piece: { type: "plot", transform: [[2, 1], [1, 3]] } },
+        ],
+      },
+    ],
+  }).scenes[0];
+  const area = SceneLayout.area(1920, 1080, "none");
+  const wide = SceneLayout.blocks(scene, area, false);
+  const [title, matrix, plot] = [0, 1, 2].map((key) => wide.get(key) as { x: number; y: number; w: number; h: number });
+  assert.equal(matrix.y, plot.y);
+  assert.ok(matrix.y >= title.y + title.h);
+  assert.ok(matrix.x + matrix.w <= plot.x && plot.x + plot.w <= area.x + area.w + 0.01);
+  assert.ok(plot.h > area.h * 0.6, `plot gets ${plot.h} of ${area.h}`);
+  const tall = SceneLayout.blocks(scene, SceneLayout.area(1080, 1920, "none"), true);
+  assert.ok((tall.get(2)?.y ?? 0) > (tall.get(1)?.y ?? 0));
+});
+
 const plotted = (piece: object) =>
   WbPlanner.plan(
     wbFilmSchema.parse({ fps: 60, width: 1920, height: 1080, scenes: [{ seconds: 14, beats: [{ at: 0.5, piece }] }] }),
@@ -188,6 +216,7 @@ test("a transform bends the grid inside the plot and names where i and j land", 
   const plan = plotted({ type: "plot", transform: [[2, 1], [1, 3]] });
   const texts = plan.inks.flatMap((ink) => (ink.kind === "text" ? ink.lines : []));
   for (const label of ["i", "j", "(2, 1)", "(1, 3)"]) assert.ok(texts.includes(label), label);
+  assert.ok(plan.inks.every((ink) => ink.kind !== "text" || ink.halo), "every plot label sits on a board halo");
   const grid = plan.inks.find((ink) => ink.kind === "line" && ink.color === "#2457c5");
   assert.ok(grid && grid.kind === "line");
   const faint = plan.inks.find((ink) => ink.kind === "line" && ink.color === "#bfe0ff");

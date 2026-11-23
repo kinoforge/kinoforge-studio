@@ -29,6 +29,7 @@ const WEIGHTS: Record<Exclude<WbPieceType, "draw" | "link" | "flow" | "circle" |
 };
 
 const DIAGRAM = new Set<WbPieceType>(["draw", "link", "flow", "circle", "cross"]);
+const SIDE = new Set<WbPieceType>(["matrix", "multiply", "plot", "bars", "compare", "number"]);
 
 export class SceneLayout {
   static area(w: number, h: number, reserve: WbReserve): Box {
@@ -56,13 +57,25 @@ export class SceneLayout {
     const out = new Map<BlockKey, Box>();
     const heads = order.filter((key) => key !== "diagram" && scene.beats[key as number].piece.type === "title");
     const rest = order.filter((key) => !heads.includes(key));
-    if (!tall && rest.includes("diagram") && rest.length > 1) {
+    const diagram = rest.includes("diagram");
+    const columns = !diagram && rest.length > 1 && rest.length <= 3 && rest.some((key) => SIDE.has(scene.beats[key as number].piece.type));
+    if (!tall && ((diagram && rest.length > 1) || columns)) {
       const top = SceneLayout.stack(heads, weight, { ...area }, gap, 3.4, false);
       const used = heads.length ? Math.max(...heads.map((key) => { const b = top.get(key) as Box; return b.y + b.h; })) - area.y + gap : 0;
       const below = { ...area, y: area.y + used, h: area.h - used };
+      for (const [key, box] of top) out.set(key, box);
+      if (columns) {
+        const share = rest.map((key) => Math.max(weight.get(key) ?? 1, 1));
+        const each = (below.w - gap * (rest.length - 1)) / share.reduce((sum, s) => sum + s, 0);
+        let x = below.x;
+        rest.forEach((key, i) => {
+          out.set(key, { ...below, x, w: each * share[i] });
+          x += each * share[i] + gap;
+        });
+        return out;
+      }
       const split = area.w * 0.58;
       const others = rest.filter((key) => key !== "diagram");
-      for (const [key, box] of top) out.set(key, box);
       out.set("diagram", { ...below, w: split - gap });
       for (const [key, box] of SceneLayout.stack(others, weight, { ...below, x: below.x + split, w: below.w - split }, gap, 2))
         out.set(key, box);

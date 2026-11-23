@@ -71,9 +71,8 @@ export function WhiteboardFilm(props: WhiteboardProps) {
     <AbsoluteFill style={{ backgroundColor: palette.board }}>
       <svg width={w} height={h} style={{ position: "absolute", inset: 0 }}>
         <g transform={`translate(${w / 2} ${h / 2}) scale(${view.zoom}) translate(${-view.cx} ${-view.cy})`}>
-          {plan.inks.map((ink, i) => (
-            <InkView key={i} ink={ink} t={t} id={`wb${i}`} />
-          ))}
+          {plan.inks.map((ink, i) => (ink.kind === "text" && ink.halo ? null : <InkView key={i} ink={ink} t={t} id={`wb${i}`} />))}
+          {plan.inks.map((ink, i) => (ink.kind === "text" && ink.halo ? <InkView key={i} ink={ink} t={t} id={`wb${i}`} /> : null))}
         </g>
       </svg>
       <Grain amount={palette.grain} dark={film.theme === "chalkboard"} />

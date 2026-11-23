@@ -599,7 +599,7 @@ export class PieceInk {
       const color = this.ink(v.ink ?? (["blue", "orange", "green", "red"] as const)[i % 4]);
       out.push(...this.vector(at([v.from?.[0] ?? 0, v.from?.[1] ?? 0]), at(v.to), color, v.label ?? `(${v.to.map(PieceInk.short).join(", ")})`, size, `v${i}`));
     });
-    return out;
+    return out.map((draft) => (draft.kind === "text" ? { ...draft, halo: palette.board } : draft));
   }
 
   private curve(curve: NonNullable<WbPieceOf<"plot">["curve"]>, at: (p: readonly number[]) => Point, size: number): InkDraft[] {

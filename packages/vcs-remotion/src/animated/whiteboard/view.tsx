@@ -70,6 +70,10 @@ function TextView({ ink, share, id }: { ink: TextInk; share: number; id: string 
               textAnchor={ink.align}
               clipPath={whole ? undefined : `url(#${clip})`}
               opacity={shown ? Math.min(1, share * 4) : 1}
+              stroke={ink.halo}
+              strokeWidth={ink.halo ? ink.size * 0.45 : undefined}
+              strokeLinejoin="round"
+              paintOrder="stroke"
               style={font}
             >
               {shown ?? line}

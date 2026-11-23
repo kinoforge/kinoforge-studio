@@ -42,6 +42,7 @@ export interface TextInk extends Timed {
   color: string;
   align: "middle" | "start";
   count?: { from: number; to: number; decimals: number; prefix: string; suffix: string };
+  halo?: string;
 }
 
 export interface DotInk extends Timed {
