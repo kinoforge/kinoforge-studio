@@ -10,6 +10,7 @@ export interface Place {
 interface Timed {
   from: number;
   to: number;
+  off?: number;
 }
 
 export interface LineInk extends Timed {
@@ -56,6 +57,7 @@ export type Ink = LineInk | FillInk | TextInk | DotInk;
 export type InkDraft = (Omit<LineInk, "from" | "to"> | Omit<FillInk, "from" | "to"> | Omit<TextInk, "from" | "to"> | Omit<DotInk, "from" | "to">) & {
   cost: number;
   with?: boolean;
+  brief?: boolean;
 };
 
 export class Inks {

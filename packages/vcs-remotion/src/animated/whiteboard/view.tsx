@@ -8,6 +8,7 @@ import type { WbPalette } from "./theme.ts";
 const BASE = 0.95;
 
 export class InkClock {
+  static readonly FADE = 0.25;
   static share(ink: Ink, t: number): number {
     if (t >= ink.to) return 1;
     const x = Math.min(1, Math.max(0, (t - ink.from) / Math.max(0.001, ink.to - ink.from)));
@@ -82,6 +83,8 @@ function TextView({ ink, share, id }: { ink: TextInk; share: number; id: string 
 
 export function InkView({ ink, t, id }: { ink: Ink; t: number; id: string }) {
   if (t < ink.from) return null;
+  const gone = ink.off == null ? 0 : Math.min(1, Math.max(0, (t - ink.off) / InkClock.FADE));
+  if (gone >= 1) return null;
   const share = InkClock.share(ink, t);
   const placed = (child: ReactNode) =>
     "place" in ink && ink.place ? (
@@ -99,6 +102,7 @@ export function InkView({ ink, t, id }: { ink: Ink; t: number; id: string }) {
           strokeWidth={ink.width}
           strokeLinecap="round"
           strokeLinejoin="round"
+          opacity={1 - gone}
           {...(share < 1 ? { pathLength: 1, strokeDasharray: "1 1", strokeDashoffset: 1 - share } : {})}
         />,
       );

@@ -17,6 +17,14 @@ export interface DrawContext {
   key: string;
 }
 
+interface Grid {
+  frame: InkDraft[];
+  cells: InkDraft[][];
+  at: (r: number, c: number) => Point;
+  w: number;
+  cell: number;
+}
+
 export class PieceInk {
   constructor(private readonly ctx: DrawContext) {}
 
@@ -46,6 +54,10 @@ export class PieceInk {
         return this.compare(piece, box);
       case "formula":
         return this.formula(piece, box);
+      case "matrix":
+        return this.matrix(piece, box);
+      case "multiply":
+        return this.multiply(piece, box);
     }
   }
 
@@ -380,6 +392,123 @@ export class PieceInk {
     const w = words.width + pad * 2;
     const h = words.height + pad * 1.4;
     return [words.draft, Inks.line([Rough.box(cx - w / 2, cy - h / 2, w, h, this.rng("formula"))], this.pen, this.ink("blue"), this.speed * 1.6)];
+  }
+
+  private grid(cells: string[][], left: number, cy: number, cell: number, color: string, tag: string): Grid {
+    const rows = cells.length;
+    const cols = cells[0].length;
+    const pad = cell * 0.22;
+    const w = cols * cell + pad * 2;
+    const h = rows * cell;
+    const top = cy - h / 2;
+    const widest = Math.max(...cells.flat().map((value) => HandFont.width(value, 1)));
+    const size = Math.min(cell * 0.5, (cell * 0.84) / Math.max(widest, 1e-6));
+    const at = (r: number, c: number): Point => [left + pad + cell * (c + 0.5), top + cell * (r + 0.5)];
+    const lip = cell * 0.18;
+    const side = (x: number, dir: number, key: string) => {
+      const rng = this.rng(`${tag}${key}`);
+      const end = top + h;
+      return [[...Rough.line([x + dir * lip, top], [x, top], rng, 0.01), ...Rough.line([x, top], [x, end], rng, 0.01), ...Rough.line([x, end], [x + dir * lip, end], rng, 0.01)]];
+    };
+    const frame = [Inks.line(side(left, 1, "l"), this.pen * 1.2, this.ink(), this.speed * 1.6), Inks.line(side(left + w, -1, "r"), this.pen * 1.2, this.ink(), this.speed * 1.6)];
+    const text = (r: number, c: number, value: string) => {
+      const [x, y] = at(r, c);
+      return Inks.text([value], [HandFont.width(value, size)], x, y - (size * HandFont.LEADING) / 2, size, "regular", color);
+    };
+    return { frame, cells: cells.map((row, r) => row.map((value, c) => text(r, c, value))), at, w, cell };
+  }
+
+  private band(grid: Grid, r0: number, c0: number, r1: number, c1: number, tag: string): Point[] {
+    const inset = grid.cell * 0.06;
+    const [x0, y0] = grid.at(r0, c0);
+    const [x1, y1] = grid.at(r1, c1);
+    const half = grid.cell / 2 - inset;
+    return Rough.box(x0 - half, y0 - half, x1 - x0 + half * 2, y1 - y0 + half * 2, this.rng(tag));
+  }
+
+  private matrix(piece: WbPieceOf<"matrix">, box: Box): InkDraft[] {
+    const { unit } = this.ctx;
+    const cells = piece.cells.map((row) => row.map((value) => (typeof value === "number" ? PieceInk.short(value) : value)));
+    const rows = cells.length;
+    const cols = cells[0].length;
+    const name = piece.name ? Math.min(unit * 0.05, box.h * 0.16) : 0;
+    const head = name * HandFont.LEADING * 1.1;
+    const cell = Math.min(unit * 0.13, (box.h - head) / rows, box.w / (cols + 0.6));
+    const w = cols * cell + cell * 0.44;
+    const total = head + rows * cell;
+    const top = box.y + (box.h - total) / 2;
+    const left = box.x + (box.w - w) / 2;
+    const grid = this.grid(cells, left, top + head + (rows * cell) / 2, cell, this.ink(piece.ink), `m${piece.name ?? ""}`);
+    const out: InkDraft[] = [];
+    if (piece.name) out.push(Inks.text([piece.name], [HandFont.width(piece.name, name, "bold")], box.x + box.w / 2, top, name, "bold", this.ink("blue")));
+    out.push(...grid.frame, ...grid.cells.flat());
+    const tints = ["blue", "orange", "green", "red", "ink"] as const;
+    if (piece.split === "rows")
+      for (let r = 0; r < rows; r++) out.push(Inks.line([this.band(grid, r, 0, r, cols - 1, `row${r}`)], this.pen, this.ink(tints[r]), this.speed * 1.4));
+    if (piece.split === "cols")
+      for (let c = 0; c < cols; c++) out.push(Inks.line([this.band(grid, 0, c, rows - 1, c, `col${c}`)], this.pen, this.ink(tints[c]), this.speed * 1.4));
+    if (piece.split === "diagonal") {
+      const n = Math.min(rows, cols) - 1;
+      const [x0, y0] = grid.at(0, 0);
+      const [x1, y1] = grid.at(n, n);
+      const angle = Math.atan2(y1 - y0, x1 - x0);
+      const cx = (x0 + x1) / 2;
+      const cy = (y0 + y1) / 2;
+      const loop = Rough.ellipse(0, 0, Math.hypot(x1 - x0, y1 - y0) / 2 + cell * 0.45, cell * 0.4, this.rng("diagonal"));
+      const turned = loop.map(([x, y]): Point => [cx + x * Math.cos(angle) - y * Math.sin(angle), cy + x * Math.sin(angle) + y * Math.cos(angle)]);
+      out.push(Inks.line([turned], this.pen * 1.2, this.ink("orange"), this.speed * 1.4));
+    }
+    return out;
+  }
+
+  private multiply(piece: WbPieceOf<"multiply">, box: Box): InkDraft[] {
+    const { unit } = this.ctx;
+    const { a, b } = piece;
+    const n = b.length;
+    const product = a.map((row) => b[0].map((_, j) => row.reduce((sum, value, k) => sum + value * b[k][j], 0)));
+    const show = (m: number[][]) => m.map((row) => row.map(PieceInk.short));
+    const [ra, ca, cb] = [a.length, n, b[0].length];
+    const work = piece.work ? 1.5 : 0;
+    const sign = 0.9;
+    const span = (cols: number) => cols + 0.44;
+    const high = Math.max(ra, n);
+    const flat = Math.min(unit * 0.12, box.w / (span(ca) + sign + span(cb) + sign + span(cb)), box.h / (high + work));
+    const stacked = Math.min(unit * 0.12, box.w / Math.max(span(ca) + sign + span(cb), sign + span(cb)), box.h / (high + 0.4 + ra + work));
+    const twoLines = stacked > flat * 1.15;
+    const cell = twoLines ? stacked : flat;
+    const used = (twoLines ? high + 0.4 + ra : high) * cell + work * cell;
+    const top = box.y + (box.h - used) / 2;
+    const line1 = top + (high * cell) / 2;
+    const line2 = twoLines ? top + (high + 0.4) * cell + (ra * cell) / 2 : line1;
+    const width1 = (span(ca) + sign + span(cb) + (twoLines ? 0 : sign + span(cb))) * cell;
+    let x = box.x + (box.w - width1) / 2;
+    const ga = this.grid(show(a), x, line1, cell, this.ink(), "ma");
+    x += ga.w;
+    const opSize = cell * 0.55;
+    const op = (glyph: string, cx: number, cy: number) => Inks.text([glyph], [HandFont.width(glyph, opSize, "bold")], cx, cy - (opSize * HandFont.LEADING) / 2, opSize, "bold", this.ink("blue"));
+    const times = op("×", x + (sign * cell) / 2, line1);
+    x += sign * cell;
+    const gb = this.grid(show(b), x, line1, cell, this.ink(), "mb");
+    x += gb.w;
+    if (twoLines) x = box.x + (box.w - (sign + span(cb)) * cell) / 2;
+    const equals = op("=", x + (sign * cell) / 2, line2);
+    x += sign * cell;
+    const gc = this.grid(show(product), x, line2, cell, this.ink("green"), "mc");
+    const out: InkDraft[] = [...ga.frame, ...ga.cells.flat(), times, ...gb.frame, ...gb.cells.flat(), equals, ...gc.frame];
+    const lit = this.ink("orange");
+    product.forEach((row, i) =>
+      row.forEach((_, j) => {
+        out.push({ ...Inks.line([this.band(ga, i, 0, i, ca - 1, `ra${i}${j}`)], this.pen, lit, this.speed * 1.8), brief: true });
+        out.push({ ...Inks.line([this.band(gb, 0, j, n - 1, j, `cb${i}${j}`)], this.pen, lit, this.speed * 1.8), brief: true, with: true });
+        if (piece.work && i === 0 && j === 0) {
+          const sum = `${a[0].map((value, k) => `${PieceInk.short(value)}×${PieceInk.short(b[k][0])}`).join(" + ")} = ${PieceInk.short(product[0][0])}`;
+          const fit = HandFont.fit(sum, { w: box.w, h: cell }, cell * 0.5, "regular", 1);
+          out.push(Inks.text(fit.lines, [fit.width], box.x + box.w / 2, top + used - work * cell * 0.75, fit.size, "regular", lit));
+        }
+        out.push(gc.cells[i][j]);
+      }),
+    );
+    return out;
   }
 
   static exit(box: Box, from: Point, toward: Point, pad: number): Point {

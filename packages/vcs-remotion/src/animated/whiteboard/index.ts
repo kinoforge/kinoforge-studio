@@ -12,6 +12,7 @@ export {
   WB_LISTS,
   WB_PIECES,
   WB_RESERVES,
+  WB_SPLITS,
   WB_THEMES,
   WB_TONES,
   type WbFilm,

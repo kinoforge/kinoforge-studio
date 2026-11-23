@@ -63,6 +63,7 @@ export class WbCues {
 
 export class WbPlanner {
   static readonly LEAST = 0.35;
+  static readonly LINGER = 0.8;
 
   static plan(film: WbFilm): WbPlan {
     const { width: w, height: h } = film;
@@ -109,13 +110,19 @@ export class WbPlanner {
     const scale = natural > room ? Math.max(WbPlanner.LEAST, room / natural) : 1;
     let at = start;
     let last = start;
-    return drafts.map((draft) => {
-      const { cost, with: together, ...ink } = draft;
+    const inks = drafts.map((draft) => {
+      const { cost, with: together, brief: _, ...ink } = draft;
       const from = together ? last : at;
       const to = from + cost * scale;
       if (!together) at = to;
       last = from;
       return { ...ink, from, to } as Ink;
     });
+    drafts.forEach((draft, i) => {
+      if (!draft.brief) return;
+      const next = drafts.findIndex((other, k) => k > i && other.brief && !other.with);
+      inks[i].off = next > 0 ? inks[next].from : inks[i].to + WbPlanner.LINGER;
+    });
+    return inks;
   }
 }

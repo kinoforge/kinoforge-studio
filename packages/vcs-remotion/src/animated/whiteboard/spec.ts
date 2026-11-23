@@ -7,7 +7,8 @@ export const WB_INKS = ["ink", "blue", "red", "green", "orange"] as const;
 export const WB_TONES = ["good", "bad", "warn"] as const;
 export const WB_LISTS = ["bullet", "check", "cross", "number"] as const;
 export const WB_RESERVES = ["bottom", "top", "none"] as const;
-export const WB_LIMITS = { scenes: 24, beats: 8, items: 8, seconds: 600, sceneSeconds: 90 } as const;
+export const WB_SPLITS = ["rows", "cols", "diagonal"] as const;
+export const WB_LIMITS = { scenes: 24, beats: 8, items: 8, seconds: 600, sceneSeconds: 90, grid: 5, product: 3 } as const;
 
 export type WbTheme = (typeof WB_THEMES)[number];
 export type WbInk = (typeof WB_INKS)[number];
@@ -16,6 +17,13 @@ export type WbReserve = (typeof WB_RESERVES)[number];
 
 const ink = z.enum(WB_INKS);
 const itemSchema = z.object({ id: slug, picture, label: text(24), ink: ink.optional() });
+const cell = z.union([z.number(), z.string().max(4)]);
+const grid = <T extends z.ZodType>(of: T, most: number) =>
+  z
+    .array(z.array(of).min(1).max(most))
+    .min(1)
+    .max(most)
+    .refine((rows) => rows.every((row) => row.length === rows[0].length), { message: "every row needs the same number of cells" });
 const side = z.object({ title: text(20), items: z.array(text(28)).min(1).max(4) });
 
 export const WB_PIECES = {
@@ -66,6 +74,21 @@ export const WB_PIECES = {
     winner: z.enum(["left", "right"]).optional(),
   }),
   formula: z.object({ type: z.literal("formula"), text: text(40) }),
+  matrix: z.object({
+    type: z.literal("matrix"),
+    cells: grid(cell, WB_LIMITS.grid),
+    name: text(16).optional(),
+    split: z.enum(WB_SPLITS).optional(),
+    ink: ink.optional(),
+  }),
+  multiply: z
+    .object({
+      type: z.literal("multiply"),
+      a: grid(z.number(), WB_LIMITS.product),
+      b: grid(z.number(), WB_LIMITS.product),
+      work: z.boolean().default(true),
+    })
+    .refine((piece) => piece.a[0].length === piece.b.length, { message: "columns of a must equal rows of b" }),
 } as const;
 
 export type WbPieceType = keyof typeof WB_PIECES;
@@ -83,6 +106,8 @@ export const wbPieceSchema = z.discriminatedUnion("type", [
   WB_PIECES.bars,
   WB_PIECES.compare,
   WB_PIECES.formula,
+  WB_PIECES.matrix,
+  WB_PIECES.multiply,
 ]);
 export type WbPiece = z.infer<typeof wbPieceSchema>;
 export type WbPieceOf<T extends WbPieceType> = Extract<WbPiece, { type: T }>;

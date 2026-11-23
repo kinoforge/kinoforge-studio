@@ -23,6 +23,8 @@ const WEIGHTS: Record<Exclude<WbPieceType, "draw" | "link" | "flow" | "circle" |
   bars: () => 1.8,
   compare: () => 1.6,
   formula: () => 0.7,
+  matrix: (piece) => (piece.type === "matrix" ? 0.5 + piece.cells.length * 0.28 : 1),
+  multiply: () => 2.2,
 };
 
 const DIAGRAM = new Set<WbPieceType>(["draw", "link", "flow", "circle", "cross"]);

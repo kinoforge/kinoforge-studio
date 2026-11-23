@@ -89,3 +89,22 @@ test("the camera never jumps", () => {
     last = view;
   }
 });
+
+test("multiply writes the real product and lights one row and column at a time", () => {
+  const parsed = wbFilmSchema.parse({
+    fps: 60,
+    width: 1080,
+    height: 1920,
+    scenes: [{ seconds: 12, beats: [{ cue: "times", piece: { type: "multiply", a: [[1, 2], [3, 4]], b: [[5, 6], [7, 8]] } }] }],
+  });
+  const texts = WbPlanner.plan(parsed).inks.flatMap((ink) => (ink.kind === "text" ? ink.lines : []));
+  for (const value of ["19", "22", "43", "50", "1×5 + 2×7 = 19"]) assert.ok(texts.includes(value), value);
+  const lit = WbPlanner.plan(parsed).inks.filter((ink) => ink.off != null);
+  assert.equal(lit.length, 8);
+  for (const ink of lit) assert.ok((ink.off as number) >= ink.from);
+});
+
+test("multiply refuses shapes that cannot multiply", () => {
+  const scene = { seconds: 5, beats: [{ cue: "x", piece: { type: "multiply", a: [[1, 2]], b: [[1, 2]] } }] };
+  assert.equal(wbFilmSchema.safeParse({ fps: 60, width: 1080, height: 1920, scenes: [scene] }).success, false);
+});
