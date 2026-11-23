@@ -231,6 +231,34 @@ test("a transform bends the grid inside the plot and names where i and j land", 
   }
 });
 
+test("plot labels never sit on each other and a curve keeps its own scale beside vectors", () => {
+  const steps = [[-3, 9], [-2, 4.2], [-1, 1.8], [0, 0.6], [1, 0.2]];
+  const plan = plotted({
+    type: "plot",
+    curve: { points: [...steps, [2, 0.6], [3, 1.8]] },
+    vectors: steps.slice(1).map((to, i) => ({ from: steps[i], to, label: `step ${i + 1}` })),
+  });
+  const labels = plan.inks.filter((ink) => ink.kind === "text" && ink.lines[0].startsWith("step"));
+  assert.equal(labels.length, 4);
+  const boxes = labels.map((ink) => (ink.kind === "text" ? { x: ink.x - ink.widths[0] / 2, y: ink.y, w: ink.widths[0], h: ink.size * 1.18 } : null)!);
+  boxes.forEach((a, i) =>
+    boxes.slice(i + 1).forEach((b) => assert.ok(a.x >= b.x + b.w || b.x >= a.x + a.w || a.y >= b.y + b.h || b.y >= a.y + a.h, "labels overlap")),
+  );
+  assert.ok(!plan.inks.some((ink) => ink.kind === "line" && ink.color === "#bfe0ff"), "a curve with vectors draws no square grid");
+});
+
+test("a link from an item to itself draws nothing", () => {
+  const plan = WbPlanner.plan(
+    wbFilmSchema.parse({
+      fps: 30,
+      width: 1920,
+      height: 1080,
+      scenes: [{ seconds: 6, beats: [{ piece: { type: "draw", items: [{ id: "a", label: "A", picture: "home" }] } }, { at: 3, piece: { type: "link", from: "a", to: "a", label: "loop" } }] }],
+    }),
+  );
+  assert.ok(!plan.inks.some((ink) => ink.kind === "text" && ink.lines.includes("loop")));
+});
+
 test("plot vectors carry their coordinates and an empty plot is refused", () => {
   const plan = plotted({ type: "plot", vectors: [{ to: [3, 2] }, { to: [-1, 2], label: "b" }] });
   const texts = plan.inks.flatMap((ink) => (ink.kind === "text" ? ink.lines : []));

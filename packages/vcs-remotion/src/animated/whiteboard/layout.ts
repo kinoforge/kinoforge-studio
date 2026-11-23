@@ -119,6 +119,7 @@ export class DiagramLayout {
     const out: [string, string][] = [];
     const seen = new Set<string>();
     const add = (from: string, to: string) => {
+      if (from === to) return;
       if (seen.has(`${to}>${from}`) || seen.has(`${from}>${to}`)) return;
       seen.add(`${from}>${to}`);
       out.push([from, to]);

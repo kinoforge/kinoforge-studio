@@ -198,7 +198,7 @@ export class PieceInk {
   private arrow(from: string, to: string, color: string, head = true): { drafts: InkDraft[]; body: Point[] } | null {
     const a = this.ctx.spots.get(from);
     const b = this.ctx.spots.get(to);
-    if (!a || !b) return null;
+    if (!a || !b || from === to) return null;
     const pad = this.ctx.unit * 0.022;
     const ca: Point = [a.box.x + a.box.w / 2, a.box.y + a.box.h / 2];
     const cb: Point = [b.box.x + b.box.w / 2, b.box.y + b.box.h / 2];
@@ -516,7 +516,7 @@ export class PieceInk {
   private plot(piece: WbPieceOf<"plot">, box: Box): InkDraft[] {
     const { unit, palette } = this.ctx;
     const size = Math.min(unit * 0.032, box.h * 0.07);
-    const flat = !piece.vectors && !piece.transform;
+    const flat = !piece.transform && (!piece.vectors || !!piece.curve);
     const matrix = piece.transform;
     const seen: Point[] = [...(piece.curve?.points ?? []).map(([x, y]): Point => [x, y])];
     for (const v of piece.vectors ?? []) seen.push([v.to[0], v.to[1]], [v.from?.[0] ?? 0, v.from?.[1] ?? 0]);
@@ -543,6 +543,7 @@ export class PieceInk {
     const at = ([x, y]: readonly number[]): Point => [left + (x - x0) * sx, bottom - (y - y0) * sy];
     const frame = { x: left, y: bottom - sy * (y1 - y0), w: sx * (x1 - x0), h: sy * (y1 - y0) };
     const out: InkDraft[] = [];
+    const taken: Box[] = [];
     const ax = flat ? y0 : 0;
     const ay = flat ? x0 : 0;
     const stepX = PieceInk.step(x1 - x0);
@@ -594,10 +595,10 @@ export class PieceInk {
       out.push(Inks.text([piece.y], [HandFont.width(piece.y, size, "bold")], px + size * 0.6, py - size * 0.4, size, "bold", this.ink("blue"), "start"));
     }
     if (piece.curve) out.push(...this.curve(piece.curve, at, size));
-    if (matrix) out.push(...this.transform(matrix, at, frame, x0, x1, y0, y1, size));
+    if (matrix) out.push(...this.transform(matrix, at, frame, x0, x1, y0, y1, size, taken));
     (piece.vectors ?? []).forEach((v, i) => {
       const color = this.ink(v.ink ?? (["blue", "orange", "green", "red"] as const)[i % 4]);
-      out.push(...this.vector(at([v.from?.[0] ?? 0, v.from?.[1] ?? 0]), at(v.to), color, v.label ?? `(${v.to.map(PieceInk.short).join(", ")})`, size, `v${i}`));
+      out.push(...this.vector(at([v.from?.[0] ?? 0, v.from?.[1] ?? 0]), at(v.to), color, v.label ?? `(${v.to.map(PieceInk.short).join(", ")})`, size, `v${i}`, taken));
     });
     return out.map((draft) => (draft.kind === "text" ? { ...draft, halo: palette.board } : draft));
   }
@@ -623,14 +624,20 @@ export class PieceInk {
     return out;
   }
 
-  private vector(from: Point, to: Point, color: string, label: string, size: number, tag: string): InkDraft[] {
+  private vector(from: Point, to: Point, color: string, label: string, size: number, tag: string, taken: Box[]): InkDraft[] {
     const [body, wings] = Rough.arrow(from, to, this.rng(tag), this.ctx.unit * 0.026, 0);
     const w = HandFont.width(label, size, "bold");
+    const h = size * HandFont.LEADING;
     const dx = to[0] - from[0];
     const dy = to[1] - from[1];
     const len = Math.hypot(dx, dy) || 1;
-    const x = to[0] + (dx / len) * size * 0.9 + (dx >= 0 ? w / 2 : -w / 2) * 0.6;
-    const y = to[1] + (dy / len) * size * 0.9 - size * 0.7;
+    const bx = to[0] + (dx / len) * size * 0.9 + (dx >= 0 ? w / 2 : -w / 2) * 0.6;
+    const by = to[1] + (dy / len) * size * 0.9 - size * 0.7;
+    const spot = (k: number): Box => ({ x: bx - (dy / len) * k * h - w / 2, y: by + (dx / len) * k * h, w, h });
+    const free = (box: Box) => taken.every((o) => box.x >= o.x + o.w || o.x >= box.x + box.w || box.y >= o.y + o.h || o.y >= box.y + box.h);
+    const box = [0, 1, -1, 2, -2, 3, -3].map(spot).find(free) ?? spot(0);
+    taken.push(box);
+    const [x, y] = [box.x + w / 2, box.y];
     return [
       Inks.line([body], this.pen * 1.5, color, this.speed * 1.2),
       Inks.line([wings], this.pen * 1.5, color, this.speed),
@@ -647,6 +654,7 @@ export class PieceInk {
     y0: number,
     y1: number,
     size: number,
+    taken: Box[],
   ): InkDraft[] {
     const [[a, b], [c, d]] = matrix;
     const move = ([x, y]: readonly number[]): number[] => [a * x + b * y, c * x + d * y];
@@ -662,12 +670,12 @@ export class PieceInk {
       }
     }
     const out: InkDraft[] = [
-      ...this.vector(at([0, 0]), at([1, 0]), this.ink(), "i", size, "i0"),
-      ...this.vector(at([0, 0]), at([0, 1]), this.ink(), "j", size, "j0"),
+      ...this.vector(at([0, 0]), at([1, 0]), this.ink(), "i", size, "i0", taken),
+      ...this.vector(at([0, 0]), at([0, 1]), this.ink(), "j", size, "j0", taken),
     ];
     if (lines.length) out.push(Inks.line(lines, this.pen * 0.8, this.ink("blue"), this.speed * 3));
-    out.push(...this.vector(at([0, 0]), at(move([1, 0])), this.ink("green"), `(${PieceInk.short(a)}, ${PieceInk.short(c)})`, size, "i1"));
-    out.push(...this.vector(at([0, 0]), at(move([0, 1])), this.ink("red"), `(${PieceInk.short(b)}, ${PieceInk.short(d)})`, size, "j1"));
+    out.push(...this.vector(at([0, 0]), at(move([1, 0])), this.ink("green"), `(${PieceInk.short(a)}, ${PieceInk.short(c)})`, size, "i1", taken));
+    out.push(...this.vector(at([0, 0]), at(move([0, 1])), this.ink("red"), `(${PieceInk.short(b)}, ${PieceInk.short(d)})`, size, "j1", taken));
     return out;
   }
 
