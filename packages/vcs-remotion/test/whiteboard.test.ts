@@ -137,3 +137,29 @@ test("a beat with its own voice starts when that voice starts", () => {
   const firsts = [...new Set(plan.inks.map((ink) => ink.from))].sort((a, b) => a - b);
   for (const at of [0.5, 5, 8.5]) assert.ok(firsts.some((from) => Math.abs(from - at) < 1e-6), String(at));
 });
+
+test("a wide scene keeps its title at the top and gives the side pieces the room below", async () => {
+  const { SceneLayout } = await import("../src/animated/whiteboard/layout.ts");
+  const film = wbFilmSchema.parse({
+    fps: 30,
+    width: 1920,
+    height: 1080,
+    scenes: [
+      {
+        seconds: 20,
+        beats: [
+          { piece: { type: "title", text: "House prices", kicker: "An example" } },
+          { piece: { type: "draw", items: [{ id: "a", label: "House", picture: "home" }] } },
+          { piece: { type: "formula", text: "(300 - 250)^2 = 2500" } },
+          { piece: { type: "bars", items: [{ label: "Small", value: 4 }, { label: "Big", value: 25 }] } },
+          { piece: { type: "list", style: "number", items: ["One", "Two", "Three"] } },
+        ],
+      },
+    ],
+  });
+  const area = SceneLayout.area(1920, 1080, film.reserve);
+  const blocks = SceneLayout.blocks(film.scenes[0], area, false);
+  assert.equal(blocks.get(0)?.y, area.y);
+  const side = [2, 3, 4].reduce((sum, key) => sum + (blocks.get(key)?.h ?? 0), 0);
+  assert.ok(side > area.h * 0.55, `side pieces get ${side} of ${area.h}`);
+});

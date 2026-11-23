@@ -56,7 +56,7 @@ export class SceneLayout {
     const heads = order.filter((key) => key !== "diagram" && scene.beats[key as number].piece.type === "title");
     const rest = order.filter((key) => !heads.includes(key));
     if (!tall && rest.includes("diagram") && rest.length > 1) {
-      const top = SceneLayout.stack(heads, weight, { ...area }, gap, 3.4);
+      const top = SceneLayout.stack(heads, weight, { ...area }, gap, 3.4, false);
       const used = heads.length ? Math.max(...heads.map((key) => { const b = top.get(key) as Box; return b.y + b.h; })) - area.y + gap : 0;
       const below = { ...area, y: area.y + used, h: area.h - used };
       const split = area.w * 0.58;
@@ -70,13 +70,13 @@ export class SceneLayout {
     return SceneLayout.stack(order, weight, area, gap, tall ? 3.6 : 2.8);
   }
 
-  private static stack(keys: BlockKey[], weight: Map<BlockKey, number>, area: Box, gap: number, least: number) {
+  private static stack(keys: BlockKey[], weight: Map<BlockKey, number>, area: Box, gap: number, least: number, centered = true) {
     const out = new Map<BlockKey, Box>();
     if (!keys.length) return out;
     const total = keys.reduce<number>((sum, key) => sum + (weight.get(key) ?? 1), 0);
     const unit = (area.h - gap * (keys.length - 1)) / Math.max(total, least);
     const used = unit * total + gap * (keys.length - 1);
-    let y = area.y + (area.h - used) / 2;
+    let y = area.y + (centered ? (area.h - used) / 2 : 0);
     for (const key of keys) {
       const h = unit * (weight.get(key) ?? 1);
       out.set(key, { x: area.x, y, w: area.w, h });
