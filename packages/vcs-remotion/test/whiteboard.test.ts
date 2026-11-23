@@ -163,3 +163,48 @@ test("a wide scene keeps its title at the top and gives the side pieces the room
   const side = [2, 3, 4].reduce((sum, key) => sum + (blocks.get(key)?.h ?? 0), 0);
   assert.ok(side > area.h * 0.55, `side pieces get ${side} of ${area.h}`);
 });
+
+const plotted = (piece: object) =>
+  WbPlanner.plan(
+    wbFilmSchema.parse({ fps: 60, width: 1920, height: 1080, scenes: [{ seconds: 14, beats: [{ at: 0.5, piece }] }] }),
+  );
+
+test("a plot rolls the ball down its curve to the lowest point and leaves it there", () => {
+  const plan = plotted({ type: "plot", x: "weight", y: "loss", curve: { points: [[-3, 9], [-1, 1], [0, 0.2], [1, 1], [3, 9]], label: "loss", roll: true } });
+  const ball = plan.inks.find((ink) => ink.kind === "dot");
+  assert.ok(ball && ball.kind === "dot");
+  const curve = plan.inks.find((ink) => ink.kind === "line" && ink.width > 0 && ink.path.length > 0 && ink.color === "#2457c5");
+  assert.ok(curve && curve.kind === "line");
+  const lowest = Math.max(...Array.from({ length: 101 }, (_, i) => curve.path.point(i / 100)[1]));
+  const [, endY] = ball.path.point(1);
+  assert.ok(Math.abs(endY + ball.r - lowest) < 2, `ball ends at ${endY + ball.r}, curve bottom ${lowest}`);
+  const rest = plan.inks.filter((ink) => ink.kind === "fill" && ink.from >= ball.to - 1e-6);
+  assert.equal(rest.length, 1);
+  const texts = plan.inks.flatMap((ink) => (ink.kind === "text" ? ink.lines : []));
+  for (const word of ["weight", "loss"]) assert.ok(texts.includes(word), word);
+});
+
+test("a transform bends the grid inside the plot and names where i and j land", () => {
+  const plan = plotted({ type: "plot", transform: [[2, 1], [1, 3]] });
+  const texts = plan.inks.flatMap((ink) => (ink.kind === "text" ? ink.lines : []));
+  for (const label of ["i", "j", "(2, 1)", "(1, 3)"]) assert.ok(texts.includes(label), label);
+  const grid = plan.inks.find((ink) => ink.kind === "line" && ink.color === "#2457c5");
+  assert.ok(grid && grid.kind === "line");
+  const faint = plan.inks.find((ink) => ink.kind === "line" && ink.color === "#bfe0ff");
+  assert.ok(faint && faint.kind === "line");
+  const edge = Array.from({ length: 2001 }, (_, i) => faint.path.point(i / 2000));
+  const xs = edge.map(([x]) => x);
+  const ys = edge.map(([, y]) => y);
+  const [lx, hx, ly, hy] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  for (let i = 0; i <= 50; i++) {
+    const [x, y] = grid.path.point(i / 50);
+    assert.ok(x >= lx - 2 && x <= hx + 2 && y >= ly - 2 && y <= hy + 2, `grid point ${x},${y} outside`);
+  }
+});
+
+test("plot vectors carry their coordinates and an empty plot is refused", () => {
+  const plan = plotted({ type: "plot", vectors: [{ to: [3, 2] }, { to: [-1, 2], label: "b" }] });
+  const texts = plan.inks.flatMap((ink) => (ink.kind === "text" ? ink.lines : []));
+  for (const label of ["(3, 2)", "b"]) assert.ok(texts.includes(label), label);
+  assert.equal(wbPieceSchema.safeParse({ type: "plot", x: "time" }).success, false);
+});

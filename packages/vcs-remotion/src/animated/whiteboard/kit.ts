@@ -30,6 +30,12 @@ const EXAMPLES: { [K in WbPieceType]: Extract<WbPiece, { type: K }> } = {
   formula: { type: "formula", text: "same key = same result" },
   matrix: { type: "matrix", cells: [[1, 0], [0, 1]], name: "Identity", split: "diagonal" },
   multiply: { type: "multiply", a: [[1, 2], [3, 4]], b: [[5, 6], [7, 8]], work: true },
+  plot: {
+    type: "plot",
+    x: "weight",
+    y: "loss",
+    curve: { points: [[-3, 9], [-1.5, 2.25], [0, 0.4], [1.5, 2.25], [3, 9]], label: "loss", roll: true },
+  },
 };
 
 export class WhiteboardKit {

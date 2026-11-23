@@ -8,7 +8,7 @@ export const WB_TONES = ["good", "bad", "warn"] as const;
 export const WB_LISTS = ["bullet", "check", "cross", "number"] as const;
 export const WB_RESERVES = ["bottom", "top", "none"] as const;
 export const WB_SPLITS = ["rows", "cols", "diagonal"] as const;
-export const WB_LIMITS = { scenes: 24, beats: 8, items: 8, seconds: 600, sceneSeconds: 90, grid: 5, product: 3 } as const;
+export const WB_LIMITS = { scenes: 40, beats: 8, items: 8, seconds: 1800, sceneSeconds: 90, grid: 5, product: 3, points: 24, vectors: 4 } as const;
 
 export type WbTheme = (typeof WB_THEMES)[number];
 export type WbInk = (typeof WB_INKS)[number];
@@ -24,6 +24,7 @@ const grid = <T extends z.ZodType>(of: T, most: number) =>
     .min(1)
     .max(most)
     .refine((rows) => rows.every((row) => row.length === rows[0].length), { message: "every row needs the same number of cells" });
+const point = z.array(z.number().min(-10000).max(10000)).length(2);
 const side = z.object({ title: text(20), items: z.array(text(28)).min(1).max(4) });
 
 export const WB_PIECES = {
@@ -89,6 +90,27 @@ export const WB_PIECES = {
       work: z.boolean().default(true),
     })
     .refine((piece) => piece.a[0].length === piece.b.length, { message: "columns of a must equal rows of b" }),
+  plot: z
+    .object({
+      type: z.literal("plot"),
+      x: text(14).optional(),
+      y: text(14).optional(),
+      curve: z
+        .object({
+          points: z.array(point).min(2).max(WB_LIMITS.points),
+          label: text(18).optional(),
+          roll: z.boolean().default(false),
+          ink: ink.optional(),
+        })
+        .optional(),
+      vectors: z
+        .array(z.object({ to: point, from: point.optional(), label: text(10).optional(), ink: ink.optional() }))
+        .min(1)
+        .max(WB_LIMITS.vectors)
+        .optional(),
+      transform: z.array(z.array(z.number().min(-4).max(4)).length(2)).length(2).optional(),
+    })
+    .refine((piece) => piece.curve || piece.vectors || piece.transform, { message: "a plot needs a curve, vectors or a transform" }),
 } as const;
 
 export type WbPieceType = keyof typeof WB_PIECES;
@@ -108,6 +130,7 @@ export const wbPieceSchema = z.discriminatedUnion("type", [
   WB_PIECES.formula,
   WB_PIECES.matrix,
   WB_PIECES.multiply,
+  WB_PIECES.plot,
 ]);
 export type WbPiece = z.infer<typeof wbPieceSchema>;
 export type WbPieceOf<T extends WbPieceType> = Extract<WbPiece, { type: T }>;

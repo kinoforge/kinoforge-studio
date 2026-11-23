@@ -58,6 +58,8 @@ export class PieceInk {
         return this.matrix(piece, box);
       case "multiply":
         return this.multiply(piece, box);
+      case "plot":
+        return this.plot(piece, box);
     }
   }
 
@@ -509,6 +511,218 @@ export class PieceInk {
       }),
     );
     return out;
+  }
+
+  private plot(piece: WbPieceOf<"plot">, box: Box): InkDraft[] {
+    const { unit, palette } = this.ctx;
+    const size = Math.min(unit * 0.032, box.h * 0.07);
+    const flat = !piece.vectors && !piece.transform;
+    const matrix = piece.transform;
+    const seen: Point[] = [...(piece.curve?.points ?? []).map(([x, y]): Point => [x, y])];
+    for (const v of piece.vectors ?? []) seen.push([v.to[0], v.to[1]], [v.from?.[0] ?? 0, v.from?.[1] ?? 0]);
+    if (matrix) {
+      const [[a, b], [c, d]] = matrix;
+      seen.push([1, 1], [-1, -1], [a + b, c + d], [a, c], [b, d], [a - b, c - d], [b - a, d - c]);
+    }
+    if (!flat) seen.push([0, 0]);
+    const range = (axis: 0 | 1) => {
+      const low = Math.min(...seen.map((p) => p[axis]));
+      const high = Math.max(...seen.map((p) => p[axis]));
+      const pad = Math.max(high - low, 1) * 0.12;
+      return [low - pad, high + pad] as const;
+    };
+    const [x0, x1] = range(0);
+    const [y0, y1] = range(1);
+    const room = { x: box.x + size * 2.4, y: box.y + size * 1.8, w: box.w - size * 4.2, h: box.h - size * 3.8 };
+    let sx = room.w / (x1 - x0);
+    let sy = room.h / (y1 - y0);
+    if (!flat) sx = sy = Math.min(sx, sy);
+    else sx = Math.min(sx, (room.h * 1.7) / (x1 - x0));
+    const left = room.x + (room.w - sx * (x1 - x0)) / 2;
+    const bottom = room.y + (room.h + sy * (y1 - y0)) / 2;
+    const at = ([x, y]: readonly number[]): Point => [left + (x - x0) * sx, bottom - (y - y0) * sy];
+    const frame = { x: left, y: bottom - sy * (y1 - y0), w: sx * (x1 - x0), h: sy * (y1 - y0) };
+    const out: InkDraft[] = [];
+    const ax = flat ? y0 : 0;
+    const ay = flat ? x0 : 0;
+    const stepX = PieceInk.step(x1 - x0);
+    const stepY = PieceInk.step(y1 - y0);
+    const ticks = (low: number, high: number, step: number) => {
+      const out: number[] = [];
+      for (let v = Math.ceil(low / step) * step; v <= high + 1e-9; v += step) out.push(Number(v.toFixed(6)));
+      return out;
+    };
+    const xs = ticks(x0, x1, stepX);
+    const ys = ticks(y0, y1, stepY);
+    if (!flat) {
+      const faint = palette.washes[1];
+      const lines = [...xs.map((x): Point[] => [at([x, y0]), at([x, y1])]), ...ys.map((y): Point[] => [at([x0, y]), at([x1, y])])];
+      out.push(Inks.line(lines, this.pen * 0.6, faint, this.speed * 4));
+    }
+    const head = unit * 0.022;
+    const [bx, wx] = Rough.arrow(at([x0, ax]), at([x1, ax]), this.rng("xaxis"), head, 0);
+    const [by, wy] = Rough.arrow(at([ay, y0]), at([ay, y1]), this.rng("yaxis"), head, 0);
+    out.push(Inks.line([bx, wx], this.pen, this.ink(), this.speed * 1.6), Inks.line([by, wy], this.pen, this.ink(), this.speed * 1.6));
+    const small = size * 0.78;
+    const tick = size * 0.3;
+    const marks: Point[][] = [];
+    const numbers: InkDraft[] = [];
+    for (const x of xs) {
+      if (!flat && x === 0) continue;
+      const [px, py] = at([x, ax]);
+      marks.push([[px, py - tick], [px, py + tick]]);
+      const label = PieceInk.short(x);
+      numbers.push(Inks.text([label], [HandFont.width(label, small)], px, py + tick * 1.2, small, "regular", this.ink()));
+    }
+    for (const y of ys) {
+      if (!flat && y === 0) continue;
+      const [px, py] = at([ay, y]);
+      marks.push([[px - tick, py], [px + tick, py]]);
+      const label = PieceInk.short(y);
+      const w = HandFont.width(label, small);
+      numbers.push(Inks.text([label], [w], px - tick * 1.6 - w / 2, py - (small * HandFont.LEADING) / 2, small, "regular", this.ink()));
+    }
+    if (marks.length) out.push(Inks.line(marks, this.pen * 0.8, this.ink(), this.speed * 4));
+    out.push(...numbers.map((draft) => ({ ...draft, with: true })));
+    if (piece.x) {
+      const [px, py] = at([x1, ax]);
+      const w = HandFont.width(piece.x, size, "bold");
+      out.push(Inks.text([piece.x], [w], Math.min(px, box.x + box.w - w / 2), py + size * 0.9, size, "bold", this.ink("blue")));
+    }
+    if (piece.y) {
+      const [px, py] = at([ay, y1]);
+      out.push(Inks.text([piece.y], [HandFont.width(piece.y, size, "bold")], px + size * 0.6, py - size * 0.4, size, "bold", this.ink("blue"), "start"));
+    }
+    if (piece.curve) out.push(...this.curve(piece.curve, at, size));
+    if (matrix) out.push(...this.transform(matrix, at, frame, x0, x1, y0, y1, size));
+    (piece.vectors ?? []).forEach((v, i) => {
+      const color = this.ink(v.ink ?? (["blue", "orange", "green", "red"] as const)[i % 4]);
+      out.push(...this.vector(at([v.from?.[0] ?? 0, v.from?.[1] ?? 0]), at(v.to), color, v.label ?? `(${v.to.map(PieceInk.short).join(", ")})`, size, `v${i}`));
+    });
+    return out;
+  }
+
+  private curve(curve: NonNullable<WbPieceOf<"plot">["curve"]>, at: (p: readonly number[]) => Point, size: number): InkDraft[] {
+    const color = this.ink(curve.ink ?? "blue");
+    const smooth = PieceInk.smooth(curve.points.map(at));
+    const out: InkDraft[] = [Inks.line([smooth], this.pen * 1.4, color, this.speed * 0.9)];
+    if (curve.label) {
+      const [ex, ey] = smooth[smooth.length - 1];
+      const w = HandFont.width(curve.label, size, "bold");
+      out.push(Inks.text([curve.label], [w], ex - w / 2 - size * 0.3, ey - size * 1.7, size, "bold", color));
+    }
+    if (curve.roll) {
+      const low = smooth.reduce((best, p, i) => (p[1] > smooth[best][1] ? i : best), 0);
+      const path = low > 0 ? smooth.slice(0, low + 1) : smooth.slice().reverse();
+      const end = path[path.length - 1];
+      const r = this.ctx.unit * 0.018;
+      const lift = (p: Point): Point => [p[0], p[1] - r];
+      out.push({ kind: "dot", path: new Polyline([path.map(lift)]), r, color: this.ink("red"), halo: this.ctx.palette.board, cost: 2 });
+      out.push(Inks.fill(PieceInk.oval(end[0], end[1] - r, r, r), this.ink("red"), 1, 0.12));
+    }
+    return out;
+  }
+
+  private vector(from: Point, to: Point, color: string, label: string, size: number, tag: string): InkDraft[] {
+    const [body, wings] = Rough.arrow(from, to, this.rng(tag), this.ctx.unit * 0.026, 0);
+    const w = HandFont.width(label, size, "bold");
+    const dx = to[0] - from[0];
+    const dy = to[1] - from[1];
+    const len = Math.hypot(dx, dy) || 1;
+    const x = to[0] + (dx / len) * size * 0.9 + (dx >= 0 ? w / 2 : -w / 2) * 0.6;
+    const y = to[1] + (dy / len) * size * 0.9 - size * 0.7;
+    return [
+      Inks.line([body], this.pen * 1.5, color, this.speed * 1.2),
+      Inks.line([wings], this.pen * 1.5, color, this.speed),
+      Inks.text([label], [w], x, y, size, "bold", color),
+    ];
+  }
+
+  private transform(
+    matrix: number[][],
+    at: (p: readonly number[]) => Point,
+    frame: Box,
+    x0: number,
+    x1: number,
+    y0: number,
+    y1: number,
+    size: number,
+  ): InkDraft[] {
+    const [[a, b], [c, d]] = matrix;
+    const move = ([x, y]: readonly number[]): number[] => [a * x + b * y, c * x + d * y];
+    const reach = Math.ceil(Math.max(Math.abs(x0), Math.abs(x1), Math.abs(y0), Math.abs(y1)) * 3);
+    const lines: Point[][] = [];
+    for (let k = -reach; k <= reach; k++) {
+      for (const [p, q] of [
+        [[k, -reach], [k, reach]],
+        [[-reach, k], [reach, k]],
+      ]) {
+        const cut = PieceInk.clip(at(move(p)), at(move(q)), frame);
+        if (cut) lines.push(cut);
+      }
+    }
+    const out: InkDraft[] = [
+      ...this.vector(at([0, 0]), at([1, 0]), this.ink(), "i", size, "i0"),
+      ...this.vector(at([0, 0]), at([0, 1]), this.ink(), "j", size, "j0"),
+    ];
+    if (lines.length) out.push(Inks.line(lines, this.pen * 0.8, this.ink("blue"), this.speed * 3));
+    out.push(...this.vector(at([0, 0]), at(move([1, 0])), this.ink("green"), `(${PieceInk.short(a)}, ${PieceInk.short(c)})`, size, "i1"));
+    out.push(...this.vector(at([0, 0]), at(move([0, 1])), this.ink("red"), `(${PieceInk.short(b)}, ${PieceInk.short(d)})`, size, "j1"));
+    return out;
+  }
+
+  static step(span: number): number {
+    const raw = span / 6;
+    const tens = 10 ** Math.floor(Math.log10(raw));
+    const best = [1, 2, 5, 10].find((m) => m * tens >= raw) ?? 10;
+    return best * tens;
+  }
+
+  static smooth(points: readonly Point[], steps = 10): Point[] {
+    if (points.length < 3) return [...points];
+    const out: Point[] = [points[0]];
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[Math.max(0, i - 1)];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[Math.min(points.length - 1, i + 2)];
+      for (let s = 1; s <= steps; s++) {
+        const t = s / steps;
+        const t2 = t * t;
+        const t3 = t2 * t;
+        const axis = (k: 0 | 1) =>
+          0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3);
+        out.push([axis(0), axis(1)]);
+      }
+    }
+    return out;
+  }
+
+  static clip(a: Point, b: Point, box: Box): Point[] | null {
+    let t0 = 0;
+    let t1 = 1;
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const edges: [number, number][] = [
+      [-dx, a[0] - box.x],
+      [dx, box.x + box.w - a[0]],
+      [-dy, a[1] - box.y],
+      [dy, box.y + box.h - a[1]],
+    ];
+    for (const [p, q] of edges) {
+      if (p === 0) {
+        if (q < 0) return null;
+        continue;
+      }
+      const r = q / p;
+      if (p < 0) t0 = Math.max(t0, r);
+      else t1 = Math.min(t1, r);
+      if (t0 > t1) return null;
+    }
+    return [
+      [a[0] + dx * t0, a[1] + dy * t0],
+      [a[0] + dx * t1, a[1] + dy * t1],
+    ];
   }
 
   static exit(box: Box, from: Point, toward: Point, pad: number): Point {
