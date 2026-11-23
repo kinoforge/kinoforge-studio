@@ -13,6 +13,8 @@ import {
   mascotSchema,
 } from "./animated/explainer/spec.ts";
 import { SKIT_COMPOSITION_ID } from "./animated/skit/composition.tsx";
+import { WHITEBOARD_COMPOSITION_ID } from "./animated/whiteboard/composition.tsx";
+import { wbFilmSchema } from "./animated/whiteboard/spec.ts";
 import { motionSchema } from "./animated/skit/motion.ts";
 import { DRAWS, lineSchema, setSchema } from "./animated/skit/spec.ts";
 import { SKIT3D_COMPOSITION_ID } from "./animated/skit3d/composition.tsx";
@@ -175,7 +177,8 @@ export type EditDoc =
       inputProps: z.infer<typeof explainerInput>;
     }
   | { compositionId: typeof SKIT_COMPOSITION_ID; inputProps: z.infer<typeof skitInput> }
-  | { compositionId: typeof SKIT3D_COMPOSITION_ID; inputProps: z.infer<typeof skit3dInput> };
+  | { compositionId: typeof SKIT3D_COMPOSITION_ID; inputProps: z.infer<typeof skit3dInput> }
+  | { compositionId: typeof WHITEBOARD_COMPOSITION_ID; inputProps: z.infer<typeof wbFilmSchema> };
 
 export class EditDocs {
   private static readonly schemas = {
@@ -185,6 +188,7 @@ export class EditDocs {
     [EXPLAINER_COMPOSITION_ID]: explainerInput,
     [SKIT_COMPOSITION_ID]: skitInput,
     [SKIT3D_COMPOSITION_ID]: skit3dInput,
+    [WHITEBOARD_COMPOSITION_ID]: wbFilmSchema,
   } as const;
 
   private static readonly extra = new Map<string, z.ZodType>();

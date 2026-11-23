@@ -83,7 +83,7 @@ export function WhiteboardFilm(props: WhiteboardProps) {
         </svg>
       )}
       {plan.voices.map((voice) => (
-        <Sequence key={voice.start} from={Math.round(voice.start * film.fps)}>
+        <Sequence key={`${voice.start}:${voice.src}`} from={Math.round(voice.start * film.fps)}>
           <Audio src={voice.src} />
         </Sequence>
       ))}

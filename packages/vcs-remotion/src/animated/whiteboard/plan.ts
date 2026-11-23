@@ -22,7 +22,7 @@ export class WbCues {
     const found: (number | null)[] = [];
     let cursor = 0;
     for (const beat of beats) {
-      const cue = beat.cue.split(/\s+/).map(WbCues.normal).filter(Boolean);
+      const cue = (beat.cue ?? "").split(/\s+/).map(WbCues.normal).filter(Boolean);
       const at = WbCues.find(tokens, cue, cursor);
       found.push(at < 0 ? null : Math.max(0, words[at].start - WbCues.LEAD));
       if (at >= 0) cursor = at + 1;
@@ -88,7 +88,7 @@ export class WbPlanner {
       const drawer = new PieceInk({ unit, palette, pictures: film.pictures, spots, arrows: new Map<string, Point[]>(), key: `s${i}` });
       const cues = WbCues.resolve(scene.beats, scene.words, scene.seconds);
       const settle = panel.start + WbCamera.settle(i);
-      const starts = cues.map((cue) => Math.max(settle, panel.start + cue));
+      const starts = cues.map((cue, b) => Math.max(settle, panel.start + (scene.beats[b].at ?? cue)));
       scene.beats.forEach((beat, b) => {
         const box = blocks.get(SceneLayout.key(scene, b));
         if (!box) return;
@@ -100,7 +100,10 @@ export class WbPlanner {
       panels,
       inks,
       seconds: clock + WbCamera.OUTRO,
-      voices: film.scenes.flatMap((scene, i) => (scene.voice ? [{ start: times[i].start, src: scene.voice }] : [])),
+      voices: film.scenes.flatMap((scene, i) => [
+        ...(scene.voice ? [{ start: times[i].start, src: scene.voice }] : []),
+        ...scene.beats.flatMap((beat) => (beat.voice ? [{ start: times[i].start + (beat.at ?? 0), src: beat.voice }] : [])),
+      ]),
     };
   }
 

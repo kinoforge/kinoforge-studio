@@ -2,7 +2,7 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BoardFit, ExplainerKit, SkitKit, Skit3DKit, fitRequestSchema } from "@vcs/remotion";
+import { BoardFit, ExplainerKit, SkitKit, Skit3DKit, WhiteboardKit, fitRequestSchema } from "@vcs/remotion";
 import express, { type Request, type Response } from "express";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CachingDriver } from "./caching-driver.ts";
@@ -101,11 +101,16 @@ const KITS = {
   explainer: ExplainerKit.describe(),
   skit: SkitKit.describe(),
   skit3d: Skit3DKit.describe(),
+  whiteboard: WhiteboardKit.describe(),
 };
 app.get("/v1/kits/animated/:mode", (req: Request, res: Response) => {
   const kit = KITS[req.params.mode as keyof typeof KITS];
   if (!kit) return res.status(404).json({ ok: false, error: "no such kit" });
   res.json(kit);
+});
+
+app.post("/v1/kits/animated/whiteboard/check", (req: Request, res: Response) => {
+  res.json({ ok: true, problems: WhiteboardKit.check(req.body?.film) });
 });
 
 app.post("/v1/kits/animated/explainer/fit", (req: Request, res: Response) => {

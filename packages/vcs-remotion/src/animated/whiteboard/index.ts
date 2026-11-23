@@ -5,6 +5,7 @@ export {
   type WhiteboardProps,
   whiteboardCalcMeta,
 } from "./composition.tsx";
+export { WhiteboardKit } from "./kit.ts";
 export { WbPlanner, type WbPlan } from "./plan.ts";
 export {
   WB_INKS,

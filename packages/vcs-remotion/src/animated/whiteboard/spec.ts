@@ -113,7 +113,12 @@ export type WbPiece = z.infer<typeof wbPieceSchema>;
 export type WbPieceOf<T extends WbPieceType> = Extract<WbPiece, { type: T }>;
 export type WbItem = z.infer<typeof itemSchema>;
 
-export const wbBeatSchema = z.object({ cue: text(40), piece: wbPieceSchema });
+export const wbBeatSchema = z.object({
+  cue: text(40).optional(),
+  at: z.number().min(0).max(WB_LIMITS.sceneSeconds).optional(),
+  voice: z.string().max(2048).optional(),
+  piece: wbPieceSchema,
+});
 export type WbBeat = z.infer<typeof wbBeatSchema>;
 
 const wordSchema = z.object({ word: z.string().max(64), start: z.number().min(0), end: z.number().min(0) });

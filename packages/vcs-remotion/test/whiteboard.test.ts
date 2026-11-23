@@ -5,7 +5,8 @@ import { WbCamera } from "../src/animated/whiteboard/camera.ts";
 import { GlyphInk } from "../src/animated/whiteboard/ink/glyph.ts";
 import { PathInk, Polyline } from "../src/animated/whiteboard/ink/path.ts";
 import { WbPlanner } from "../src/animated/whiteboard/plan.ts";
-import { type WbFilmInput, wbFilmSchema } from "../src/animated/whiteboard/spec.ts";
+import { WhiteboardKit } from "../src/animated/whiteboard/kit.ts";
+import { WB_PIECES, type WbFilmInput, wbFilmSchema, wbPieceSchema } from "../src/animated/whiteboard/spec.ts";
 
 const film: WbFilmInput = {
   fps: 60,
@@ -107,4 +108,32 @@ test("multiply writes the real product and lights one row and column at a time",
 test("multiply refuses shapes that cannot multiply", () => {
   const scene = { seconds: 5, beats: [{ cue: "x", piece: { type: "multiply", a: [[1, 2]], b: [[1, 2]] } }] };
   assert.equal(wbFilmSchema.safeParse({ fps: 60, width: 1080, height: 1920, scenes: [scene] }).success, false);
+});
+
+test("the kit describes every piece and checks a film the way the renderer parses it", () => {
+  const kit = WhiteboardKit.describe();
+  assert.deepEqual(kit.pieces.map((piece) => piece.type).sort(), Object.keys(WB_PIECES).sort());
+  for (const piece of kit.pieces) {
+    assert.ok(piece.fields.length > 0, piece.type);
+    assert.ok(wbPieceSchema.safeParse(piece.example).success, piece.type);
+  }
+  assert.deepEqual(WhiteboardKit.check(film), []);
+  const scene = { seconds: 5, beats: [{ piece: { type: "link", from: "a", to: "b" } }] };
+  assert.ok(WhiteboardKit.check({ ...film, scenes: [scene] }).some((problem) => problem.includes("not drawn")));
+});
+
+test("a beat with its own voice starts when that voice starts", () => {
+  const parsed = wbFilmSchema.parse({
+    fps: 60,
+    width: 1080,
+    height: 1920,
+    scenes: [
+      { seconds: 4, beats: [{ at: 0.5, voice: "a.mp3", piece: { type: "title", text: "One" } }] },
+      { seconds: 8, beats: [{ at: 1, voice: "b.mp3", piece: { type: "write", text: "Two" } }, { at: 4.5, voice: "c.mp3", piece: { type: "formula", text: "x = 3" } }] },
+    ],
+  });
+  const plan = WbPlanner.plan(parsed);
+  assert.deepEqual(plan.voices, [{ start: 0.5, src: "a.mp3" }, { start: 5, src: "b.mp3" }, { start: 8.5, src: "c.mp3" }]);
+  const firsts = [...new Set(plan.inks.map((ink) => ink.from))].sort((a, b) => a - b);
+  for (const at of [0.5, 5, 8.5]) assert.ok(firsts.some((from) => Math.abs(from - at) < 1e-6), String(at));
 });
