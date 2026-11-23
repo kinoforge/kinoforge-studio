@@ -238,8 +238,8 @@ test("plot labels never sit on each other and a curve keeps its own scale beside
     curve: { points: [...steps, [2, 0.6], [3, 1.8]] },
     vectors: steps.slice(1).map((to, i) => ({ from: steps[i], to, label: `step ${i + 1}` })),
   });
-  const labels = plan.inks.filter((ink) => ink.kind === "text" && ink.lines[0].startsWith("step"));
-  assert.equal(labels.length, 4);
+  const labels = plan.inks.filter((ink) => ink.kind === "text" && ink.lines[0].length <= 6);
+  assert.ok(labels.filter((ink) => ink.kind === "text" && ink.lines[0].startsWith("step")).length === 4);
   const boxes = labels.map((ink) => (ink.kind === "text" ? { x: ink.x - ink.widths[0] / 2, y: ink.y, w: ink.widths[0], h: ink.size * 1.18 } : null)!);
   boxes.forEach((a, i) =>
     boxes.slice(i + 1).forEach((b) => assert.ok(a.x >= b.x + b.w || b.x >= a.x + a.w || a.y >= b.y + b.h || b.y >= a.y + a.h, "labels overlap")),

@@ -573,7 +573,9 @@ export class PieceInk {
       const [px, py] = at([x, ax]);
       marks.push([[px, py - tick], [px, py + tick]]);
       const label = PieceInk.short(x);
-      numbers.push(Inks.text([label], [HandFont.width(label, small)], px, py + tick * 1.2, small, "regular", this.ink()));
+      const w = HandFont.width(label, small);
+      taken.push({ x: px - w / 2, y: py + tick * 1.2, w, h: small * HandFont.LEADING });
+      numbers.push(Inks.text([label], [w], px, py + tick * 1.2, small, "regular", this.ink()));
     }
     for (const y of ys) {
       if (!flat && y === 0) continue;
@@ -581,6 +583,7 @@ export class PieceInk {
       marks.push([[px - tick, py], [px + tick, py]]);
       const label = PieceInk.short(y);
       const w = HandFont.width(label, small);
+      taken.push({ x: px - tick * 1.6 - w, y: py - (small * HandFont.LEADING) / 2, w, h: small * HandFont.LEADING });
       numbers.push(Inks.text([label], [w], px - tick * 1.6 - w / 2, py - (small * HandFont.LEADING) / 2, small, "regular", this.ink()));
     }
     if (marks.length) out.push(Inks.line(marks, this.pen * 0.8, this.ink(), this.speed * 4));
