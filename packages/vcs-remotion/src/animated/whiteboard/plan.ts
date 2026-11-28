@@ -11,7 +11,7 @@ export interface WbPlan {
   panels: Panel[];
   inks: Ink[];
   seconds: number;
-  voices: { start: number; src: string }[];
+  voices: { start: number; end: number; src: string }[];
 }
 
 export class WbCues {
@@ -101,8 +101,8 @@ export class WbPlanner {
       inks,
       seconds: clock + WbCamera.OUTRO,
       voices: film.scenes.flatMap((scene, i) => [
-        ...(scene.voice ? [{ start: times[i].start, src: scene.voice }] : []),
-        ...scene.beats.flatMap((beat) => (beat.voice ? [{ start: times[i].start + (beat.at ?? 0), src: beat.voice }] : [])),
+        ...(scene.voice ? [{ start: times[i].start, end: times[i].end, src: scene.voice }] : []),
+        ...scene.beats.flatMap((beat) => (beat.voice ? [{ start: times[i].start + (beat.at ?? 0), end: times[i].end, src: beat.voice }] : [])),
       ]),
     };
   }

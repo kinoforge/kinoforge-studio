@@ -133,7 +133,7 @@ test("a beat with its own voice starts when that voice starts", () => {
     ],
   });
   const plan = WbPlanner.plan(parsed);
-  assert.deepEqual(plan.voices, [{ start: 0.5, src: "a.mp3" }, { start: 5, src: "b.mp3" }, { start: 8.5, src: "c.mp3" }]);
+  assert.deepEqual(plan.voices, [{ start: 0.5, end: 4, src: "a.mp3" }, { start: 5, end: 12, src: "b.mp3" }, { start: 8.5, end: 12, src: "c.mp3" }]);
   const firsts = [...new Set(plan.inks.map((ink) => ink.from))].sort((a, b) => a - b);
   for (const at of [0.5, 5, 8.5]) assert.ok(firsts.some((from) => Math.abs(from - at) < 1e-6), String(at));
 });
